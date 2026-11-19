@@ -193,6 +193,11 @@
 			{"scripts.post_iptables_script.sh", "File", NULL, EVM_RESTART_FIREWALL|EVM_BLOCK_UNSAFE},
 			{"scripts.ez_buttons_script.sh", "File", NULL, EVM_BLOCK_UNSAFE},
 			{"scripts.inet_state_script.sh", "File", NULL, FALSE},
+			{"adblock_enable", "", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_sources", "File", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_custom", "File", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_interval", "", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_status", "", NULL, FALSE},
 			{0,0,0,0}
 		};
 
