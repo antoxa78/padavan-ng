@@ -2,13 +2,26 @@
 BIN=/usr/sbin/adblock
 DIR=/etc/storage/adblock
 
-SRC=$(nvram get adblock_sources)
-if [ -z "$SRC" ]; then
-    SRC="$(cat "$BIN/defaults/sources.conf")"
-    nvram set adblock_sources="$SRC"
-    nvram commit
+PRESETS=$BIN/defaults/presets.conf
+MASK=$(nvram get adblock_presets)
+case "$MASK" in ''|*[!0-9]*) MASK=127;; esac
+EXTRA=$(nvram get adblock_extra_sources)
+: > "$DIR/sources.conf"
+while IFS='|' read -r idx label url; do
+    case "$idx" in ''|'#'*) continue;; esac
+    if [ $((MASK & (1 << idx))) -ne 0 ]; then
+        echo "$url" >> "$DIR/sources.conf"
+    fi
+done < "$PRESETS"
+if [ -n "$EXTRA" ]; then
+    printf '%s\n' "$EXTRA" >> "$DIR/sources.conf"
 fi
-printf '%s\n' "$SRC" > "$DIR/sources.conf"
+if [ ! -s "$DIR/sources.conf" ]; then
+    cp "$BIN/defaults/sources.conf" "$DIR/sources.conf"
+    nvram set adblock_presets=127
+fi
+nvram set adblock_sources="$(cat "$DIR/sources.conf")"
+nvram commit
 
 CUSTOM=$(nvram get adblock_custom)
 if [ -n "$CUSTOM" ]; then

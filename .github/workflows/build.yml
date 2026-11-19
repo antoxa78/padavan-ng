@@ -1,0 +1,62 @@
+name: Build RM-AC2100 adblock firmware
+
+on:
+  push:
+    branches: [ adblock-settings ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            autoconf automake autopoint cmake bison build-essential flex gawk \
+            gettext git gperf libtool libtool-bin pkg-config fakeroot kmod cpio \
+            doxygen texinfo help2man libncurses-dev zlib1g-dev libsqlite3-dev \
+            gcc-multilib curl dos2unix unzip wget locales xxd libltdl-dev \
+            libgmp3-dev libmpfr-dev libmpc-dev libarchive-tools libblkid-dev \
+            ca-certificates zstd mc bc
+
+      - name: Cache toolchain
+        uses: actions/cache@v4
+        with:
+          path: toolchain/out
+          key: rm-ac2100-toolchain-v1
+
+      - name: Configure
+        run: |
+          cd trunk
+          cp configs/templates/XIAOMI/rm-ac2100-adblock.config .config
+
+      - name: Build toolchain
+        run: |
+          if ! ls toolchain/out/mipsel-linux-uclibc/sysroot/lib/libuClibc-*.so >/dev/null 2>&1; then
+            cd toolchain
+            ./build_toolchain.sh
+          fi
+
+      - name: Build firmware
+        run: |
+          cd trunk
+          ./build-adblock.sh
+
+      - name: Checksums
+        run: |
+          cd trunk/images
+          sha256sum *.trx > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: rm-ac2100-adblock
+          path: |
+            trunk/images/*.trx
+            trunk/images/SHA256SUMS

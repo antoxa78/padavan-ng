@@ -1,0 +1,8 @@
+trunk/.config
+trunk/libc/uClibc-*
+trunk/stage/
+trunk/romfs/
+trunk/images/
+toolchain/out/
+toolchain/.build/
+toolchain/dl/

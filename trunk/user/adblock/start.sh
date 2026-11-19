@@ -12,13 +12,16 @@ mkdir -p "$DIR" "$WORK"
 [ -f "$DIR/dnsmasq.conf" ] || cp "$BIN/defaults/dnsmasq.conf" "$DIR/dnsmasq.conf"
 
 # Action scripts used by the web UI.
-cp "$BIN/actions/adblock_apply.sh" /tmp/adblock_apply.sh
-cp "$BIN/actions/adblock_update.sh" /tmp/adblock_update.sh
-chmod 755 /tmp/adblock_apply.sh /tmp/adblock_update.sh
+for a in adblock_apply.sh adblock_update.sh adblock_reset.sh adblock_test.sh adblock_log.sh adblock_stats.sh adblock_export.sh adblock_import.sh; do
+    cp "$BIN/actions/$a" "/tmp/$a"
+    chmod 755 "/tmp/$a"
+done
 
 # First-boot NVRAM defaults for the settings page.
 [ -z "$(nvram get adblock_enable)" ] && nvram set adblock_enable=1
-[ -z "$(nvram get adblock_interval)" ] && nvram set adblock_interval=daily
+[ -z "$(nvram get adblock_interval)" ] && nvram set adblock_interval=weekly
+[ -z "$(nvram get adblock_presets)" ] && nvram set adblock_presets=127
+[ -z "$(nvram get adblock_extra_sources)" ] && nvram set adblock_extra_sources=""
 [ -z "$(nvram get adblock_sources)" ] && nvram set adblock_sources="$(cat "$DIR/sources.conf")"
 [ -z "$(nvram get adblock_custom)" ] && nvram set adblock_custom="$(cat "$DIR/custom.hosts")"
 [ -z "$(nvram get adblock_allow)" ] && nvram set adblock_allow="$(cat "$DIR/custom.allow")"
@@ -127,6 +130,8 @@ else
         echo "addn-hosts=$WORK/hosts.v4"
         echo "addn-hosts=$WORK/hosts.v6"
         echo "conf-file=$DIR/wildcard.conf"
+        echo "log-queries"
+        echo "log-facility=/tmp/adblock-queries.log"
     } > "$DIR/dnsmasq.d/adblock.conf"
 
     if [ -x /tmp/restart_dhcpd ]; then

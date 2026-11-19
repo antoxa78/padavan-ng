@@ -10,6 +10,11 @@ for L in update.lock start.lock; do
     fi
 done
 
+LOG=/tmp/adblock-queries.log
+if [ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 2000000 ]; then
+    : > "$LOG"
+fi
+
 if [ "$(nvram get adblock_enable)" = "0" ]; then
     exit 0
 fi

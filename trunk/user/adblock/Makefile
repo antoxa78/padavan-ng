@@ -16,5 +16,6 @@ romfs:
 	$(ROMFSINST) /usr/sbin/adblock/restart.sh
 	$(ROMFSINST) /usr/sbin/adblock/stop.sh
 	$(ROMFSINST) /usr/sbin/adblock/rollback.sh
+	$(ROMFSINST) /usr/sbin/adblock/stats.sh
 	$(ROMFSINST) -d actions /usr/sbin/adblock/actions
 	$(ROMFSINST) -d defaults /usr/sbin/adblock/defaults

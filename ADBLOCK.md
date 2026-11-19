@@ -8,15 +8,19 @@ This fork adds a DNS blocklist service and a settings page to Padavan-ng.
   EasyList, EasyPrivacy, EasyList Hebrew)
 - IPv4 **and** IPv6 blocking (`0.0.0.0` and `::1`)
 - Gzipped NAND backup in `/etc/storage/adblock/hosts.gz`
-- Daily or weekly updates, plus a "Update now" button
+- Weekly updates by default (daily optional), plus an "Update now" button
 - Watchdog every minute
 - Settings page: **Advanced → Customization → Adblock**
+- Preset source checkboxes: 7 defaults + 12 regional lists
+- Per-source download status
 - Custom blocked domains textarea
 - Allowlist textarea (domains and subdomains that are never blocked)
 - Wildcard blocks for major ad networks (`address=/domain/0.0.0.0` + `::1`)
 - AP mode and router mode
 - Update rejection for critical domains, with previous-list rollback
+- Diagnostics: test domain, update log, blocked-query stats, export/import settings, restore defaults
 - Status line with the last domain count/update time
+- Quick rebuild script and GitHub Actions build workflow
 
 ## Build
 
@@ -40,6 +44,19 @@ cp configs/templates/XIAOMI/rm-ac2100-adblock.config .config
 ```
 
 The image is written to `trunk/images/`.
+
+For quick user-space iterations (scripts, settings page, adblock package):
+
+```sh
+cd trunk
+./quick-rebuild.sh
+```
+
+That reuses the toolchain, kernel and package build trees. The full
+`build-adblock.sh` is only needed after config/kernel changes.
+
+GitHub Actions workflow `.github/workflows/build.yml` builds the toolchain
+(cached) and uploads the `.trx` plus `SHA256SUMS`.
 
 Use `rm-ac2100.config` instead of `rm-ac2100-adblock.config` if you want the
 full feature set.
@@ -75,13 +92,15 @@ Further candidates (kept by default to avoid breaking their UI pages):
 | Path | Purpose |
 |---|---|
 | `/usr/sbin/adblock/` | scripts and defaults (firmware) |
-| `/etc/storage/adblock/sources.conf` | source URLs |
+| `/etc/storage/adblock/sources.conf` | generated source URLs |
 | `/etc/storage/adblock/custom.hosts` | manual blocked domains |
 | `/etc/storage/adblock/custom.allow` | allowlist (never block) |
 | `/etc/storage/adblock/wildcard.conf` | wildcard ad-network blocks |
 | `/etc/storage/adblock/dnsmasq.conf` | AP-mode resolver config |
 | `/etc/storage/adblock/dnsmasq.d/adblock.conf` | router-mode include |
 | `/etc/storage/adblock/hosts.gz` | IPv4 list backup (NAND) |
+| `/usr/sbin/adblock/defaults/presets.conf` | preset source catalog |
+| `/tmp/adblock-queries.log` | dnsmasq query log for stats |
 | `/tmp/adblock/hosts.v4` | live IPv4 list |
 | `/tmp/adblock/hosts.v6` | live IPv6 list |
 | `/tmp/adblock_apply.sh` | UI apply action |
@@ -95,14 +114,22 @@ Further candidates (kept by default to avoid breaking their UI pages):
   `conf-dir=/etc/storage/adblock/dnsmasq.d` in
   `/etc/storage/dnsmasq/dnsmasq.conf`.
 
+## NAND wear
+
+Updates default to **weekly** to reduce NAND writes. Daily and off are available
+on the settings page. `mtd_storage.sh save` only writes when the stored content
+actually changes.
+
 ## Settings page
 
 After flashing, open:
 
 **Advanced → Customization → Adblock**
 
-The page supports enable/disable, daily/weekly/off updates, source URLs,
-custom blocked domains, allowed domains, status, and "Update now".
+The page supports enable/disable, weekly/daily/off updates, preset source
+checkboxes, extra source URLs, custom blocked domains, allowed domains,
+per-source status, test-domain, update log, blocked-query stats,
+export/import settings, restore defaults, and "Update now".
 
 ## Recovery
 

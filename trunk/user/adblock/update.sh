@@ -16,6 +16,7 @@ trap 'rm -f "$LOCK"' EXIT
 
 fail_update() {
     logger -t adblock "$1"
+    [ -n "$SRC_STATUS" ] && nvram set adblock_source_status="$SRC_STATUS"
     nvram set adblock_status="$1"
     nvram commit
     rm -f "$LOCK"
@@ -27,6 +28,7 @@ fail_update() {
 [ -s "$DIR/custom.allow" ] || echo '# no allowlist' > "$DIR/custom.allow"
 
 rm -f "$WORK"/src.* "$WORK"/hosts.v4.new "$WORK"/hosts.v6.new "$WORK"/hosts.gz.new "$WORK"/hosts.gz.bak "$WORK"/hosts
+SRC_STATUS=""
 N=0
 OK=0
 while IFS= read -r url; do
@@ -35,6 +37,9 @@ while IFS= read -r url; do
     if wget -q -T 30 -O "$WORK/src.$N" "$url"; then
         if [ "$(wc -c < "$WORK/src.$N")" -gt 1000 ]; then
             OK=$((OK + 1))
+            SRC_LINES=$(wc -l < "$WORK/src.$N")
+            SRC_STATUS="$SRC_STATUS$url ($SRC_LINES lines)
+"
         else
             logger -t adblock "empty download: $url"
             rm -f "$WORK/src.$N"
@@ -187,6 +192,8 @@ if [ "$PERSISTED" = "1" ]; then
 else
     nvram set adblock_status="$LINES domains (not saved), $(date '+%Y-%m-%d %H:%M')"
 fi
+nvram set adblock_source_status="$SRC_STATUS"
+nvram set adblock_last_success="$(date '+%Y-%m-%d %H:%M')"
 nvram commit
 /sbin/mtd_storage.sh save >/dev/null 2>&1
 logger -t adblock "updated: $LINES domains from $OK/$N sources"
