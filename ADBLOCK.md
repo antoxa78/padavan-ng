@@ -79,16 +79,19 @@ full feature set.
 | `EXT2/3/4`, `XFS`, `FAT/VFAT`, `EXFAT` | USB/storage filesystems; no USB |
 | `USB video` | No USB support on this board |
 | `LANG_RU` | English-only UI |
+| `CURL` | adblock uses BusyBox wget; saves ~1.2 MB |
+| `TOR`, `obfs4proxy` | Already disabled in the base template |
 
 The Services submenu is shortened automatically when these are disabled.
 
 Further candidates (kept by default to avoid breaking their UI pages):
 
 - OpenVPN / StrongSwan / AmneziaWG (~3 MB)
-- Tor / obfs4proxy (~10 MB, already disabled in the base template)
-- curl/libcurl (~1.2 MB)
 - OpenSSH/SFTP (~1 MB; Dropbear is still included)
 - XUPnPd (~1 MB)
+
+Tor/obfs4proxy and curl/libcurl are disabled; the old `.trx`'s Tor
+(~10 MB) and curl will not be in the new image.
 
 The USB/storage/CIFS kernel modules and the Russian dictionary are now
 removed; `STORAGE_ENABLED=n` already excludes Samba/NFS/AiDisk user-space
