@@ -329,11 +329,11 @@ function validate_wlphrase(s, v, obj){
                                             <th><a class="help_tooltip" href="javascript:void(0);" onmouseover="openTooltip(this, 0, 23);"><#WLANConfig11b_x_RadioEnableDate_itemname#></a></th>
                                             <td>
                                                 <div class="controls">
+                                                    <label class="checkbox inline"><input type="checkbox" class="input" name="rt_radio_date_x_Sun" onChange="return changeDate();"/><#DAY_Sun#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_radio_date_x_Mon" onChange="return changeDate();"/><#DAY_Mon#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_radio_date_x_Tue" onChange="return changeDate();"/><#DAY_Tue#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_radio_date_x_Wed" onChange="return changeDate();"/><#DAY_Wed#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_radio_date_x_Thu" onChange="return changeDate();"/><#DAY_Thu#></label>
-                                                    <label class="checkbox inline"><input type="checkbox" class="input" name="rt_radio_date_x_Fri" onChange="return changeDate();"/><#DAY_Fri#></label>
                                                 </div>
                                             </td>
                                         </tr>
@@ -350,8 +350,8 @@ function validate_wlphrase(s, v, obj){
                                             <th><#WLANConfig11b_x_RadioEnableDate_itemname2#></th>
                                             <td>
                                                 <div class="controls">
+                                                    <label class="checkbox inline"><input type="checkbox" class="input" name="rt_radio_date_x_Fri" onChange="return changeDate();"/><#DAY_Fri#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_radio_date_x_Sat" onChange="return changeDate();"/><#DAY_Sat#></label>
-                                                    <label class="checkbox inline"><input type="checkbox" class="input" name="rt_radio_date_x_Sun" onChange="return changeDate();"/><#DAY_Sun#></label>
                                                 </div>
                                             </td>
                                         </tr>

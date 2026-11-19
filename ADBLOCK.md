@@ -80,15 +80,21 @@ full feature set.
 | `USB video` | No USB support on this board |
 | `LANG_RU` | English-only UI |
 | `CURL` | adblock uses BusyBox wget; saves ~1.2 MB |
+| `SFTP` | Dropbear SCP is enough |
 | `TOR`, `obfs4proxy` | Already disabled in the base template |
+| `IPTV` (`igmpproxy`, `udpxy`) | Not used; the IPTV page is removed |
+| `WPA-Enterprise` (`wpa_supplicant`, `802.1x`) | WPA2-PSK only |
+| `infosvr`, `lanauth`, `lld2d`, `optware` | Legacy Asus LAN services |
 
 The Services submenu is shortened automatically when these are disabled.
 
-Further candidates (kept by default to avoid breaking their UI pages):
+Kept on purpose:
 
-- OpenVPN / StrongSwan / AmneziaWG (~3 MB)
-- OpenSSH/SFTP (~1 MB; Dropbear is still included)
-- XUPnPd (~1 MB)
+- OpenVPN / StrongSwan / AmneziaWG (VPN client)
+- `inadyn` (DDNS)
+- `miniupnpd` (UPnP)
+- xUPnPd + Lua (DLNA)
+- `xl2tpd`, `rp-l2tp`, `accel-pptpd` (L2TP/PPTP)
 
 Tor/obfs4proxy and curl/libcurl are disabled; the old `.trx`'s Tor
 (~10 MB) and curl will not be in the new image.
@@ -96,6 +102,17 @@ Tor/obfs4proxy and curl/libcurl are disabled; the old `.trx`'s Tor
 The USB/storage/CIFS kernel modules and the Russian dictionary are now
 removed; `STORAGE_ENABLED=n` already excludes Samba/NFS/AiDisk user-space
 packages.
+
+## Wi-Fi schedule
+
+The radio and guest-AP schedules use the Israeli workweek:
+
+- Workweek: Sunday–Thursday, using the first time range.
+- Weekend: Friday–Saturday, using the second time range.
+
+The page groups the day checkboxes accordingly, and `timecheck_wifi()`
+in `trunk/user/rc/net_wifi.c` selects the range by day, including
+cross-midnight handling.
 
 ## Runtime layout
 

@@ -1249,18 +1249,12 @@ manual_change_guest_wl(int radio_on)
 int 
 timecheck_wifi(int is_aband, const char *nv_date, const char *nv_time1, const char *nv_time2)
 {
-#define DOW_MASK_SUN (1 << 0)
-#define DOW_MASK_MON (1 << 1)
-#define DOW_MASK_TUE (1 << 2)
-#define DOW_MASK_WED (1 << 3)
-#define DOW_MASK_THU (1 << 4)
-#define DOW_MASK_FRI (1 << 5)
-#define DOW_MASK_SAT (1 << 6)
-
 	time_t now;
 	struct tm *tm;
 	char *aDate, *aTime1, *aTime2;
-	int i, current_min, current_dow, schedul_dow, iTime1B, iTime1E, iTime2B, iTime2E;
+	int current_min, today, yesterday;
+	int iTime1B, iTime1E, iTime2B, iTime2E;
+	int today_start, today_end, yest_start, yest_end;
 
 	aDate  = nvram_wlan_get(is_aband, nv_date);
 	aTime1 = nvram_wlan_get(is_aband, nv_time1);
@@ -1274,114 +1268,41 @@ timecheck_wifi(int is_aband, const char *nv_date, const char *nv_time1, const ch
 	    strcmp(aTime2, "00002359")==0)
 		return 1;
 
-	// Mon..Fri time
+	// Sun..Thu time (workweek)
 	iTime1B = ((aTime1[0]-'0')*10 + (aTime1[1]-'0'))*60 + (aTime1[2]-'0')*10 + (aTime1[3]-'0');
 	iTime1E = ((aTime1[4]-'0')*10 + (aTime1[5]-'0'))*60 + (aTime1[6]-'0')*10 + (aTime1[7]-'0');
 
-	// Sat, Sun time
+	// Fri, Sat time (weekend)
 	iTime2B = ((aTime2[0]-'0')*10 + (aTime2[1]-'0'))*60 + (aTime2[2]-'0')*10 + (aTime2[3]-'0');
 	iTime2E = ((aTime2[4]-'0')*10 + (aTime2[5]-'0'))*60 + (aTime2[6]-'0')*10 + (aTime2[7]-'0');
 
 	time(&now);
 	tm = localtime(&now);
 	current_min = tm->tm_hour * 60 + tm->tm_min;
-	current_dow = 1 << tm->tm_wday;
 
-	schedul_dow = 0;
-	for(i=0; i<7; i++){
-		if (aDate[i] == '1')
-			schedul_dow |= (1 << i);
+	/* Weekend is Friday (5) and Saturday (6); the week starts on Sunday. */
+	today = tm->tm_wday;
+	yesterday = (today + 6) % 7;
+
+	today_start = (today == 5 || today == 6) ? iTime2B : iTime1B;
+	today_end   = (today == 5 || today == 6) ? iTime2E : iTime1E;
+	yest_start  = (yesterday == 5 || yesterday == 6) ? iTime2B : iTime1B;
+	yest_end    = (yesterday == 5 || yesterday == 6) ? iTime2E : iTime1E;
+
+	/* Today's window */
+	if (aDate[today] == '1') {
+		if (today_start < today_end) {
+			if (current_min >= today_start && current_min <= today_end)
+				return 1;
+		} else {
+			if (current_min >= today_start)
+				return 1;
+		}
 	}
 
-	/* Saturday */
-	if (current_dow & DOW_MASK_SAT)
-	{
-		if (schedul_dow & DOW_MASK_SAT)
-		{
-			if (iTime2B < iTime2E)
-			{
-				if (current_min >= iTime2B && current_min <= iTime2E)
-					return 1;
-			}
-			else
-			{
-				if (current_min >= iTime2B)
-					return 1;
-				
-				/* Check Friday -> Saturday after midnight (special check after workweek) */
-				if ((schedul_dow & DOW_MASK_FRI) && (iTime1B < iTime1E) && (current_min <= iTime2E))
-					return 1;
-			}
-		}
-		
-		/* Check cross-night from Friday */
-		if ((schedul_dow & DOW_MASK_FRI) && (iTime1B >= iTime1E) && (current_min <= iTime1E))
-			return 1;
-	}
-	else /* Sunday */
-	if (current_dow & DOW_MASK_SUN)
-	{
-		if (schedul_dow & DOW_MASK_SUN)
-		{
-			if (iTime2B < iTime2E)
-			{
-				if (current_min >= iTime2B && current_min <= iTime2E)
-					return 1;
-			}
-			else
-			{
-				if (current_min >= iTime2B)
-					return 1;
-			}
-		}
-		
-		/* Check cross-night from Saturday */
-		if ((schedul_dow & DOW_MASK_SAT) && (iTime2B >= iTime2E) && (current_min <= iTime2E))
-			return 1;
-	}
-	else /* Monday */
-	if (current_dow & DOW_MASK_MON)
-	{
-		if (schedul_dow & DOW_MASK_MON)
-		{
-			if (iTime1B < iTime1E)
-			{
-				if (current_min >= iTime1B && current_min <= iTime1E)
-					return 1;
-			}
-			else
-			{
-				if (current_min >= iTime1B)
-					return 1;
-				
-				/* Check Sunday -> Monday after midnight (special check after weekend) */
-				if ((schedul_dow & DOW_MASK_SUN) && (iTime2B < iTime2E) && (current_min <= iTime1E))
-					return 1;
-			}
-		}
-		
-		/* Check cross-night from Sunday */
-		if ((schedul_dow & DOW_MASK_SUN) && (iTime2B >= iTime2E) && (current_min <= iTime2E))
-			return 1;
-	}
-	else /* Tuesday..Friday */
-	{
-		if (schedul_dow & current_dow)
-		{
-			if (iTime1B < iTime1E)
-			{
-				if (current_min >= iTime1B && current_min <= iTime1E)
-					return 1;
-			}
-			else
-			{
-				if (current_min >= iTime1B)
-					return 1;
-			}
-		}
-		
-		/* Check cross-night from previous day */
-		if ((schedul_dow & (current_dow >> 1)) && (iTime1B >= iTime1E) && (current_min <= iTime1E))
+	/* Yesterday's window, if it crosses midnight */
+	if (aDate[yesterday] == '1' && yest_start >= yest_end) {
+		if (current_min <= yest_end)
 			return 1;
 	}
 

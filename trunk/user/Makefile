@@ -106,22 +106,15 @@ dir_y						+= httpd
 dir_y						+= www
 dir_y						+= adblock
 dir_y						+= rc
-dir_y						+= infosvr
 dir_y						+= inadyn
 dir_y						+= miniupnpd
 dir_y						+= dnsmasq
-dir_y						+= igmpproxy
-dir_y						+= udpxy
 dir_y						+= utils
-dir_y						+= lanauth
-dir_y						+= 802.1x
-dir_y						+= wpa_supplicant
 dir_y						+= pppd
 dir_y						+= pppoe
 dir_y						+= accel-pptpd
 dir_y						+= xl2tpd
 dir_$(CONFIG_FIRMWARE_INCLUDE_RPL2TP)		+= rp-l2tp
-dir_y						+= lldt
 dir_y						+= scripts
 dir_$(OPENSSH_ENABLED)				+= openssh
 dir_$(DROPBEAR_ENABLED)				+= dropbear
@@ -195,7 +188,6 @@ endif
 ifdef CONFIG_MTD_UBI
 ifneq ($(STORAGE_ENABLED),y)
 dir_y						+= util-linux
-dir_y						+= optware
 endif
 dir_y						+= mtd-utils
 endif

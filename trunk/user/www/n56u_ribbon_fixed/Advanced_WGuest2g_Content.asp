@@ -303,11 +303,11 @@ function change_guest_auth_mode(mflag) {
                                             <th><#WIFIGuestDate#></th>
                                             <td>
                                                 <div class="controls">
+                                                    <label class="checkbox inline"><input type="checkbox" class="input" name="rt_guest_date_x_Sun" onChange="return changeDate();"/><#DAY_Sun#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_guest_date_x_Mon" onChange="return changeDate();"/><#DAY_Mon#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_guest_date_x_Tue" onChange="return changeDate();"/><#DAY_Tue#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_guest_date_x_Wed" onChange="return changeDate();"/><#DAY_Wed#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_guest_date_x_Thu" onChange="return changeDate();"/><#DAY_Thu#></label>
-                                                    <label class="checkbox inline"><input type="checkbox" class="input" name="rt_guest_date_x_Fri" onChange="return changeDate();"/><#DAY_Fri#></label>
                                                 </div>
                                             </td>
                                         </tr>
@@ -324,8 +324,8 @@ function change_guest_auth_mode(mflag) {
                                             <th><#WIFIGuestDate2#></th>
                                             <td>
                                                 <div class="controls">
+                                                    <label class="checkbox inline"><input type="checkbox" class="input" name="rt_guest_date_x_Fri" onChange="return changeDate();"/><#DAY_Fri#></label>
                                                     <label class="checkbox inline"><input type="checkbox" class="input" name="rt_guest_date_x_Sat" onChange="return changeDate();"/><#DAY_Sat#></label>
-                                                    <label class="checkbox inline"><input type="checkbox" class="input" name="rt_guest_date_x_Sun" onChange="return changeDate();"/><#DAY_Sun#></label>
                                                 </div>
                                             </td>
                                         </tr>

@@ -166,6 +166,7 @@ endif
 ifneq ($(CONFIG_FIRMWARE_INCLUDE_IPSET),y)
 	rm -f $(INSTALLDIR)/www/Advanced_Services_IPSet.asp
 endif
+	rm -f $(INSTALLDIR)/www/Advanced_IPTV_Content.asp
 ifneq ($(CONFIG_FIRMWARE_INCLUDE_DNSCRYPT)$(CONFIG_FIRMWARE_INCLUDE_DOH)$(CONFIG_FIRMWARE_INCLUDE_STUBBY)$(CONFIG_FIRMWARE_INCLUDE_ZAPRET)$(CONFIG_FIRMWARE_INCLUDE_ZAPRET2)$(CONFIG_FIRMWARE_INCLUDE_IPSET),yyyyyy)
 	sed -i 's|^tabtitle\[6\].*|tabtitle[6] = new Array("", "<#Services_Menu_1#>");|' $(ROMFS_DIR)/www/state.js
 	sed -i 's|^tablink\[6\].*|tablink[6] = new Array("", "Advanced_Services_Content.asp");|' $(ROMFS_DIR)/www/state.js
