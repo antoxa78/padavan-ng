@@ -30,6 +30,7 @@ function initial() {
         document.form.adblock_update_hour.value = 4;
     if (!document.form.adblock_update_min.value)
         document.form.adblock_update_min.value = 15;
+    fixStatusText();
     updateStatusBadge();
     updateScheduleHint();
 }
@@ -50,6 +51,45 @@ function updateMask() {
             mask |= (1 << parseInt(boxes[i].value));
     }
     document.form.adblock_presets.value = mask;
+    updatePresetHint();
+}
+
+function setPresets(mask) {
+    var boxes = document.getElementsByName('preset');
+    for (var i = 0; i < boxes.length; i++)
+        boxes[i].checked = (mask & (1 << parseInt(boxes[i].value))) != 0;
+    updateMask();
+}
+
+function defaultPresets() {
+    setPresets(127);
+}
+
+function clearPresets() {
+    setPresets(0);
+}
+
+function updatePresetHint() {
+    var hint = document.getElementById('presetHint');
+    if (!hint)
+        return;
+    var n = 0;
+    var boxes = document.getElementsByName('preset');
+    for (var i = 0; i < boxes.length; i++)
+        if (boxes[i].checked) n++;
+    if (n === 0)
+        hint.innerHTML = 'No presets selected - extra sources and custom domains only.';
+    else
+        hint.innerHTML = n + ' preset source' + (n === 1 ? '' : 's') + ' selected.';
+}
+
+function fixStatusText() {
+    var st = document.getElementById('statusText');
+    if (st && !st.innerHTML.trim())
+        st.innerHTML = 'not updated yet';
+    var lu = document.getElementById('lastUpdate');
+    if (lu && !lu.innerHTML.trim())
+        lu.innerHTML = 'never';
 }
 
 function adblockPad2(n) {
@@ -69,8 +109,22 @@ function updateStatusBadge() {
     if (!badge)
         return;
     var enabled = document.form.adblock_enable.value === '1';
-    badge.className = 'label ' + (enabled ? 'label-success' : 'label-important');
-    badge.innerHTML = enabled ? 'Enabled' : 'Disabled';
+    var st = document.getElementById('statusText');
+    var status = st ? st.innerHTML.toLowerCase() : '';
+    var cls = 'label-success';
+    var text = 'Enabled';
+    if (!enabled) {
+        cls = 'label-important';
+        text = 'Disabled';
+    } else if (status.indexOf('fail') >= 0 || status.indexOf('error') >= 0) {
+        cls = 'label-important';
+        text = 'Error';
+    } else if (status.indexOf('updating') >= 0) {
+        cls = 'label-warning';
+        text = 'Updating';
+    }
+    badge.className = 'label ' + cls;
+    badge.innerHTML = text;
 }
 
 function updateScheduleHint() {
@@ -240,7 +294,10 @@ function done_validating(action) {
                                             <div class="well" style="margin-bottom: 0; padding: 12px;">
                                                 <div class="clearfix">
                                                     <span class="pull-left"><strong>Status</strong></span>
-                                                    <span class="pull-right"><span id="statusBadge" class="label">Status</span></span>
+                                                    <span class="pull-right">
+                                                        <button type="button" class="btn btn-mini" style="margin-right: 6px;" onclick="location.reload();"><i class="icon-refresh"></i> Refresh</button>
+                                                        <span id="statusBadge" class="label">Status</span>
+                                                    </span>
                                                 </div>
                                                 <div class="muted" style="margin-top: 8px;">
                                                     Last successful update: <span id="lastUpdate"><% nvram_dump("adblock_last_success","never"); %></span>
@@ -303,8 +360,15 @@ function done_validating(action) {
                                     </div>
 
                                     <div class="well" style="margin: 0 10px 10px; padding: 12px;">
-                                        <h4 style="margin-top: 0;">Sources</h4>
-                                        <p class="muted">Preset lists are downloaded during an update. Select the lists you want to use.</p>
+                                        <div class="clearfix">
+                                            <h4 class="pull-left" style="margin-top: 0;">Sources</h4>
+                                            <div class="pull-right">
+                                                <button type="button" class="btn btn-mini" onclick="defaultPresets();">Defaults</button>
+                                                <button type="button" class="btn btn-mini" onclick="clearPresets();">Clear all</button>
+                                            </div>
+                                        </div>
+                                        <p class="muted">Preset lists are downloaded during an update. Select the lists you want to use, or clear all to use only extra sources and custom domains.</p>
+                                        <div class="help-block" id="presetHint" style="margin-bottom: 10px;"></div>
                                         <div class="row-fluid">
                                             <div class="span6">
                                                 <label class="checkbox"><input type="checkbox" name="preset" value="0" onchange="updateMask()"> AnudeepND</label>

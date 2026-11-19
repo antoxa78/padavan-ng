@@ -7,6 +7,10 @@ PID=/var/run/adblock-dnsmasq.pid
 LOCK=$WORK/update.lock
 
 mkdir -p "$WORK"
+LOG=/tmp/adblock-update.log
+: > "$LOG"
+exec >> "$LOG" 2>&1
+echo "=== $(date '+%Y-%m-%d %H:%M:%S') update start ==="
 if [ -f "$LOCK" ] && kill -0 "$(cat "$LOCK")" 2>/dev/null; then
     logger -t adblock "update already running"
     exit 1
@@ -16,15 +20,16 @@ trap 'rm -f "$LOCK"' EXIT
 
 fail_update() {
     logger -t adblock "$1"
+    echo "FAILED: $1"
     [ -n "$SRC_STATUS" ] && nvram set adblock_source_status="$SRC_STATUS"
+    "$BIN/start.sh" >/dev/null 2>&1
     nvram set adblock_status="$1"
     nvram commit
     rm -f "$LOCK"
-    "$BIN/start.sh" >/dev/null 2>&1
     exit 1
 }
 
-[ -s "$SOURCES" ] || fail_update "update failed: missing sources"
+[ -f "$SOURCES" ] || : > "$SOURCES"
 [ -s "$DIR/custom.allow" ] || echo '# no allowlist' > "$DIR/custom.allow"
 
 rm -f "$WORK"/src.* "$WORK"/hosts.v4.new "$WORK"/hosts.v6.new "$WORK"/hosts.gz.new "$WORK"/hosts.gz.bak "$WORK"/hosts
@@ -50,8 +55,9 @@ while IFS= read -r url; do
     fi
 done < "$SOURCES"
 
-if [ "$OK" -eq 0 ]; then
-    fail_update "update failed: no sources downloaded"
+echo "sources: $OK/$N downloaded"
+if [ "$OK" -eq 0 ] && [ ! -s "$DIR/custom.hosts" ]; then
+    fail_update "update failed: no sources and no custom domains"
 fi
 
 # Keep the previous gzip in /tmp as a rollback copy.
@@ -61,7 +67,10 @@ fi
 rm -f "$WORK/hosts.v4" "$WORK/hosts.v6"
 
 # Normalize, apply the allowlist, then deduplicate (IPv4 list).
-set -- "$DIR/custom.allow" "$WORK"/src.*
+set -- "$DIR/custom.allow"
+for f in "$WORK"/src.*; do
+    [ -f "$f" ] && set -- "$@" "$f"
+done
 [ -f "$DIR/custom.hosts" ] && set -- "$@" "$DIR/custom.hosts"
 if ! awk '
 function clean(d) {
@@ -110,7 +119,10 @@ fi
 rm -f "$WORK"/src.*
 
 LINES=$(wc -l < "$WORK/hosts.v4.new")
-if [ "$LINES" -lt 1000 ]; then
+echo "domains: $LINES"
+MIN_LINES=1000
+[ "$(nvram get adblock_presets)" = "0" ] && MIN_LINES=1
+if [ "$LINES" -lt "$MIN_LINES" ]; then
     fail_update "update rejected: only $LINES domains"
 fi
 if [ "$LINES" -gt 500000 ]; then
@@ -187,6 +199,7 @@ if [ "$(nvram get adblock_enable)" != "0" ]; then
     fi
 fi
 
+echo "saved: $PERSISTED"
 if [ "$PERSISTED" = "1" ]; then
     nvram set adblock_status="$LINES domains, $(date '+%Y-%m-%d %H:%M')"
 else
@@ -196,4 +209,5 @@ nvram set adblock_source_status="$SRC_STATUS"
 nvram set adblock_last_success="$(date '+%Y-%m-%d %H:%M')"
 nvram commit
 /sbin/mtd_storage.sh save >/dev/null 2>&1
+echo "=== update finished: $LINES domains from $OK/$N sources ==="
 logger -t adblock "updated: $LINES domains from $OK/$N sources"

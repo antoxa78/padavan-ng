@@ -81,7 +81,7 @@ clean:
 	rm -f config_done
 
 romfs:
-	$(ROMFSINST) -x $(STAGEDIR)/usr/sbin/ipsec /usr/sbin/ipsec
+	$(ROMFSINST) -p +x $(STAGEDIR)/usr/sbin/ipsec /usr/sbin/ipsec
 	$(ROMFSINST) -d $(STAGEDIR)/usr/libexec/ipsec /usr/libexec/ipsec
 	mkdir -p $(ROMFSDIR)/usr/lib/ipsec
 	cp -fP $(STAGEDIR)/usr/lib/ipsec/*.so* $(ROMFSDIR)/usr/lib/ipsec

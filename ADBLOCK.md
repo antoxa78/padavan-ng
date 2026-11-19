@@ -13,7 +13,10 @@ This fork adds a DNS blocklist service and a settings page to Padavan-ng.
 - Watchdog every minute
 - Settings page: **Advanced → Customization → Adblock**
 - Preset source checkboxes: 7 defaults + 12 regional lists
+- **Defaults / Clear all** preset buttons; clearing all switches to extra
+  sources and custom domains only
 - Per-source download status
+- Status and last-successful-update fields with a Refresh button
 - Custom blocked domains textarea
 - Allowlist textarea (domains and subdomains that are never blocked)
 - Wildcard blocks for major ad networks (`address=/domain/0.0.0.0` + `::1`)
@@ -159,10 +162,13 @@ After flashing, open:
 **Advanced → Customization → Adblock**
 
 The page supports enable/disable, weekly/daily/12h/6h/off updates with a
-configurable update hour and minute, preset source checkboxes, extra source
-URLs, custom blocked domains, allowed domains, per-source status, test-domain,
-update log, blocked-query stats, export/import settings, restore defaults, and
-"Update now".
+configurable update hour and minute, preset source checkboxes with
+**Defaults** and **Clear all** buttons, extra source URLs, custom blocked
+domains, allowed domains, per-source status, test-domain, update log,
+blocked-query stats, export/import settings, restore defaults, and
+"Update now". The status card shows the current state and last successful
+update, with a Refresh button. Clearing all presets is supported; the update
+then uses only extra sources and custom domains (at least one is required).
 
 ## Recovery
 

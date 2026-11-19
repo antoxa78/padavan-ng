@@ -20,4 +20,6 @@ else
         /usr/sbin/dnsmasq
     fi
 fi
+nvram set adblock_status="disabled"
+nvram commit
 logger -t adblock "stopped"

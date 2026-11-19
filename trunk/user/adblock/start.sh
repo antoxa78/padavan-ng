@@ -45,6 +45,8 @@ done
 nvram commit
 
 if [ "$(nvram get adblock_enable)" = "0" ]; then
+    nvram set adblock_status="disabled"
+    nvram commit
     exit 0
 fi
 
@@ -127,9 +129,13 @@ write_cron() {
 }
 
 finish() {
+    LINES=$(grep -c '^0\.0\.0\.0 ' "$WORK/hosts.v4")
     write_cron
     /sbin/mtd_storage.sh save >/dev/null 2>&1
-    logger -t adblock "started ($1) with $(grep -c '^0\.0\.0\.0 ' "$WORK/hosts.v4") domains"
+    nvram set adblock_status="$LINES domains (ready)"
+    [ -z "$(nvram get adblock_last_success)" ] && nvram set adblock_last_success="never"
+    nvram commit
+    logger -t adblock "started ($1) with $LINES domains"
 }
 
 SW_MODE=$(nvram get sw_mode)

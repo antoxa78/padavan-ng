@@ -16,7 +16,7 @@ done < "$PRESETS"
 if [ -n "$EXTRA" ]; then
     printf '%s\n' "$EXTRA" >> "$DIR/sources.conf"
 fi
-if [ ! -s "$DIR/sources.conf" ]; then
+if [ ! -s "$DIR/sources.conf" ] && [ "$MASK" -ne 0 ]; then
     cp "$BIN/defaults/sources.conf" "$DIR/sources.conf"
     nvram set adblock_presets=127
 fi
