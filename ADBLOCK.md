@@ -75,6 +75,10 @@ full feature set.
 | `IPSET` | adblock uses dnsmasq hosts, not ipsets |
 | `TCPDUMP` | diagnostics only |
 | `WPAD` | proxy auto-discovery not needed |
+| `CIFS`, `NFS`/`NFSD` | Network shares; no storage/AiDisk on this board |
+| `EXT2/3/4`, `XFS`, `FAT/VFAT`, `EXFAT` | USB/storage filesystems; no USB |
+| `USB video` | No USB support on this board |
+| `LANG_RU` | English-only UI |
 
 The Services submenu is shortened automatically when these are disabled.
 
@@ -85,7 +89,10 @@ Further candidates (kept by default to avoid breaking their UI pages):
 - curl/libcurl (~1.2 MB)
 - OpenSSH/SFTP (~1 MB; Dropbear is still included)
 - XUPnPd (~1 MB)
-- USB/storage/CIFS kernel modules (~1.5 MB; the board has no USB)
+
+The USB/storage/CIFS kernel modules and the Russian dictionary are now
+removed; `STORAGE_ENABLED=n` already excludes Samba/NFS/AiDisk user-space
+packages.
 
 ## Runtime layout
 
