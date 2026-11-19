@@ -208,6 +208,8 @@
 			{"adblock_import", "File", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_last_success", "", NULL, FALSE},
 			{"adblock_interval", "", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_update_hour", "", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_update_min", "", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_status", "", NULL, FALSE},
 			{0,0,0,0}
 		};

@@ -20,6 +20,8 @@ done
 # First-boot NVRAM defaults for the settings page.
 [ -z "$(nvram get adblock_enable)" ] && nvram set adblock_enable=1
 [ -z "$(nvram get adblock_interval)" ] && nvram set adblock_interval=weekly
+[ -z "$(nvram get adblock_update_hour)" ] && nvram set adblock_update_hour=4
+[ -z "$(nvram get adblock_update_min)" ] && nvram set adblock_update_min=15
 [ -z "$(nvram get adblock_presets)" ] && nvram set adblock_presets=127
 [ -z "$(nvram get adblock_extra_sources)" ] && nvram set adblock_extra_sources=""
 [ -z "$(nvram get adblock_sources)" ] && nvram set adblock_sources="$(cat "$DIR/sources.conf")"
@@ -75,13 +77,33 @@ write_cron() {
     mkdir -p /etc/storage/cron/crontabs
     TMP=/tmp/adblock-cron
     [ -f /etc/storage/cron/crontabs/admin ] && grep -v -E 'adblock|watchdog\.sh' /etc/storage/cron/crontabs/admin > "$TMP"
+
+    HOUR=$(nvram get adblock_update_hour)
+    MIN=$(nvram get adblock_update_min)
+    [ -z "$HOUR" ] && HOUR=4
+    [ -z "$MIN" ] && MIN=15
+    HOUR=$(echo "$HOUR" | sed 's/^0*//')
+    MIN=$(echo "$MIN" | sed 's/^0*//')
+    [ -z "$HOUR" ] && HOUR=0
+    [ -z "$MIN" ] && MIN=0
+    case "$HOUR" in *[!0-9]*) HOUR=4;; esac
+    case "$MIN" in *[!0-9]*) MIN=15;; esac
+    [ "$HOUR" -le 23 ] || HOUR=4
+    [ "$MIN" -le 59 ] || MIN=15
+    H12=$(((HOUR + 12) % 24))
+    H6B=$(((HOUR + 6) % 24))
+    H6C=$(((HOUR + 12) % 24))
+    H6D=$(((HOUR + 18) % 24))
+
     {
         cat "$TMP" 2>/dev/null
         echo "* * * * * $BIN/watchdog.sh"
         case "$(nvram get adblock_interval)" in
-            weekly) echo "15 4 * * 0 $BIN/update.sh";;
-            off) ;;
-            *) echo "15 4 * * * $BIN/update.sh";;
+            weekly) echo "$MIN $HOUR * * 0 $BIN/update.sh";;
+            12h)    echo "$MIN $HOUR,$H12 * * * $BIN/update.sh";;
+            6h)     echo "$MIN $HOUR,$H6B,$H6C,$H6D * * * $BIN/update.sh";;
+            off)    ;;
+            *)      echo "$MIN $HOUR * * * $BIN/update.sh";;
         esac
     } > /etc/storage/cron/crontabs/admin
     rm -f "$TMP"

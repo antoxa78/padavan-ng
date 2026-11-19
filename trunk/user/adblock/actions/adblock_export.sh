@@ -10,6 +10,10 @@
     nvram get adblock_allow
     echo "[interval]"
     nvram get adblock_interval
+    echo "[update_hour]"
+    nvram get adblock_update_hour
+    echo "[update_min]"
+    nvram get adblock_update_min
     echo "[enable]"
     nvram get adblock_enable
 } > /tmp/adblock-export.txt

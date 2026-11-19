@@ -8,7 +8,8 @@ This fork adds a DNS blocklist service and a settings page to Padavan-ng.
   EasyList, EasyPrivacy, EasyList Hebrew)
 - IPv4 **and** IPv6 blocking (`0.0.0.0` and `::1`)
 - Gzipped NAND backup in `/etc/storage/adblock/hosts.gz`
-- Weekly updates by default (daily optional), plus an "Update now" button
+- Scheduled updates: weekly (default), daily, every 12 hours, every 6 hours,
+  or off, with a configurable update hour/minute; plus an "Update now" button
 - Watchdog every minute
 - Settings page: **Advanced → Customization → Adblock**
 - Preset source checkboxes: 7 defaults + 12 regional lists
@@ -143,9 +144,12 @@ cross-midnight handling.
 
 ## NAND wear
 
-Updates default to **weekly** to reduce NAND writes. Daily and off are available
-on the settings page. `mtd_storage.sh save` only writes when the stored content
-actually changes.
+Updates default to **weekly** to reduce NAND writes. Daily, every 12 hours,
+every 6 hours, and off are available on the settings page. The update hour and
+minute are configurable; the 6/12-hour schedules use that time as the first run
+and repeat from there. `mtd_storage.sh save` only writes when the stored content
+actually changes, so more frequent updates do not necessarily mean more NAND
+writes.
 
 ## Settings page
 
@@ -153,10 +157,11 @@ After flashing, open:
 
 **Advanced → Customization → Adblock**
 
-The page supports enable/disable, weekly/daily/off updates, preset source
-checkboxes, extra source URLs, custom blocked domains, allowed domains,
-per-source status, test-domain, update log, blocked-query stats,
-export/import settings, restore defaults, and "Update now".
+The page supports enable/disable, weekly/daily/12h/6h/off updates with a
+configurable update hour and minute, preset source checkboxes, extra source
+URLs, custom blocked domains, allowed domains, per-source status, test-domain,
+update log, blocked-query stats, export/import settings, restore defaults, and
+"Update now".
 
 ## Recovery
 

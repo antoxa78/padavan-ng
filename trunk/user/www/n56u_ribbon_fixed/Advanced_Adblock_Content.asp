@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Adblock - Adblock</title>
+<title><#Web_Title#> - Adblock</title>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="-1">
@@ -26,6 +26,12 @@ function initial() {
     show_menu(5, 9, 4);
     show_footer();
     initPresets();
+    if (!document.form.adblock_update_hour.value)
+        document.form.adblock_update_hour.value = 4;
+    if (!document.form.adblock_update_min.value)
+        document.form.adblock_update_min.value = 15;
+    updateStatusBadge();
+    updateScheduleHint();
 }
 
 function initPresets() {
@@ -46,6 +52,83 @@ function updateMask() {
     document.form.adblock_presets.value = mask;
 }
 
+function adblockPad2(n) {
+    return (n < 10 ? '0' : '') + n;
+}
+
+function getScheduleValues() {
+    var h = parseInt(document.form.adblock_update_hour.value, 10);
+    var m = parseInt(document.form.adblock_update_min.value, 10);
+    if (isNaN(h) || h < 0 || h > 23) h = 4;
+    if (isNaN(m) || m < 0 || m > 59) m = 15;
+    return { h: h, m: m };
+}
+
+function updateStatusBadge() {
+    var badge = document.getElementById('statusBadge');
+    if (!badge)
+        return;
+    var enabled = document.form.adblock_enable.value === '1';
+    badge.className = 'label ' + (enabled ? 'label-success' : 'label-important');
+    badge.innerHTML = enabled ? 'Enabled' : 'Disabled';
+}
+
+function updateScheduleHint() {
+    var interval = document.form.adblock_interval.value;
+    var v = getScheduleValues();
+    var hm = adblockPad2(v.h) + ':' + adblockPad2(v.m);
+    var h12 = adblockPad2((v.h + 12) % 24) + ':' + adblockPad2(v.m);
+    var h6 = [
+        adblockPad2((v.h + 6) % 24) + ':' + adblockPad2(v.m),
+        adblockPad2((v.h + 12) % 24) + ':' + adblockPad2(v.m),
+        adblockPad2((v.h + 18) % 24) + ':' + adblockPad2(v.m)
+    ];
+    var shortText = '';
+    var longText = '';
+
+    if (interval === 'weekly') {
+        shortText = 'Sunday ' + hm;
+        longText = 'Runs every Sunday at ' + hm + '.';
+    } else if (interval === 'daily') {
+        shortText = 'Daily ' + hm;
+        longText = 'Runs every day at ' + hm + '.';
+    } else if (interval === '12h') {
+        shortText = 'Every 12 hours';
+        longText = 'Runs every 12 hours at ' + hm + ' and ' + h12 + '.';
+    } else if (interval === '6h') {
+        shortText = 'Every 6 hours';
+        longText = 'Runs every 6 hours at ' + hm + ', ' + h6[0] + ', ' + h6[1] + ' and ' + h6[2] + '.';
+    } else {
+        shortText = 'Off';
+        longText = 'Automatic updates are disabled. Use Update now to refresh manually.';
+    }
+
+    var top = document.getElementById('scheduleHintTop');
+    var inline = document.getElementById('scheduleHintInline');
+    var short = document.getElementById('scheduleShort');
+    if (short) short.innerHTML = shortText;
+    if (top) top.innerHTML = longText;
+    if (inline) inline.innerHTML = longText;
+}
+
+function validateSchedule() {
+    var h = parseInt(document.form.adblock_update_hour.value, 10);
+    var m = parseInt(document.form.adblock_update_min.value, 10);
+    if (isNaN(h) || h < 0 || h > 23) {
+        alert('Update hour must be between 0 and 23.');
+        document.form.adblock_update_hour.focus();
+        return false;
+    }
+    if (isNaN(m) || m < 0 || m > 59) {
+        alert('Update minute must be between 0 and 59.');
+        document.form.adblock_update_min.focus();
+        return false;
+    }
+    document.form.adblock_update_hour.value = h;
+    document.form.adblock_update_min.value = m;
+    return true;
+}
+
 function submitAction(script) {
     if (!login_safe())
         return;
@@ -59,6 +142,8 @@ function submitAction(script) {
 }
 
 function applyRule() {
+    if (!validateSchedule())
+        return;
     submitAction('adblock_apply.sh');
 }
 
@@ -139,165 +224,220 @@ function done_validating(action) {
                 <div class="row-fluid">
                     <div class="span12">
                         <div class="box well grad_colour_dark_blue">
-                            <h2 class="box_head round_top">Adblock</h2>
+                            <h2 class="box_head round_top"><i class="icon-filter"></i> Adblock</h2>
                             <div class="round_bottom">
                                 <div class="row-fluid">
                                     <div id="tabMenu" class="submenuBlock"></div>
+
                                     <div class="alert alert-info" style="margin: 10px;">
-                                        DNS blocklist for clients connected through this router/AP.
+                                        DNS blocklist for clients connected through this router or AP.
                                         AP mode uses a separate resolver; router mode integrates with the system dnsmasq.
-                                        The list is downloaded on first update; check <b>/tmp/adblock-update.log</b> for progress.
+                                        The list is downloaded on first update; progress is shown in the update log below.
                                     </div>
 
-                                    <table width="100%" cellpadding="4" cellspacing="0" class="table">
-                                        <tr>
-                                            <th width="35%">Adblock enabled</th>
-                                            <td>
-                                                <select name="adblock_enable" class="input">
-                                                    <option value="1" <% nvram_match("adblock_enable","1","selected"); %>>Enabled</option>
-                                                    <option value="0" <% nvram_match("adblock_enable","0","selected"); %>>Disabled</option>
-                                                </select>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Update interval</th>
-                                            <td>
-                                                <select name="adblock_interval" class="input">
-                                                    <option value="weekly" <% nvram_match("adblock_interval","weekly","selected"); %>>Weekly (Sunday 04:15)</option>
-                                                    <option value="daily" <% nvram_match("adblock_interval","daily","selected"); %>>Daily (04:15)</option>
-                                                    <option value="off" <% nvram_match("adblock_interval","off","selected"); %>>Disabled</option>
-                                                </select>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Status</th>
-                                            <td><% nvram_dump("adblock_status","not updated yet"); %></td>
-                                        </tr>
-                                        <tr>
-                                            <th>Last successful update</th>
-                                            <td><% nvram_dump("adblock_last_success","never"); %></td>
-                                        </tr>
-                                    </table>
+                                    <div class="row-fluid" style="margin: 0 10px 10px;">
+                                        <div class="span6">
+                                            <div class="well" style="margin-bottom: 0; padding: 12px;">
+                                                <div class="clearfix">
+                                                    <span class="pull-left"><strong>Status</strong></span>
+                                                    <span class="pull-right"><span id="statusBadge" class="label">Status</span></span>
+                                                </div>
+                                                <div class="muted" style="margin-top: 8px;">
+                                                    Last successful update: <span id="lastUpdate"><% nvram_dump("adblock_last_success","never"); %></span>
+                                                </div>
+                                                <div class="muted" id="statusText"><% nvram_dump("adblock_status","not updated yet"); %></div>
+                                            </div>
+                                        </div>
+                                        <div class="span6">
+                                            <div class="well" style="margin-bottom: 0; padding: 12px;">
+                                                <div class="clearfix">
+                                                    <span class="pull-left"><strong>Schedule</strong></span>
+                                                    <span class="pull-right muted" id="scheduleShort"></span>
+                                                </div>
+                                                <div class="muted" style="margin-top: 8px;" id="scheduleHintTop"></div>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                    <table width="100%" cellpadding="4" cellspacing="0" class="table">
-                                        <tr>
-                                            <th>Preset sources</th>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="0" onchange="updateMask()"> AnudeepND</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="1" onchange="updateMask()"> AdAway official</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="2" onchange="updateMask()"> StevenBlack Unified</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="3" onchange="updateMask()"> Pete Lowe</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="4" onchange="updateMask()"> EasyList ad servers</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="5" onchange="updateMask()"> EasyPrivacy</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="6" onchange="updateMask()"> EasyList Hebrew</label>
-                                                <br>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="7" onchange="updateMask()"> EasyList Germany + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="8" onchange="updateMask()"> Liste FR + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="9" onchange="updateMask()"> EasyList Italy + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="10" onchange="updateMask()"> EasyList Dutch + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="11" onchange="updateMask()"> EasyList China + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="12" onchange="updateMask()"> EasyList Spanish + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="13" onchange="updateMask()"> EasyList Polish + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="14" onchange="updateMask()"> EasyList Portuguese + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="15" onchange="updateMask()"> RU AdList + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="16" onchange="updateMask()"> KoreanList + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="17" onchange="updateMask()"> IndianList + EasyList</label>
-                                                <label class="checkbox inline"><input type="checkbox" name="preset" value="18" onchange="updateMask()"> Nordic Filters + EasyList</label>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Extra source URLs (one per line)</th>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <textarea rows="4" wrap="off" spellcheck="false" maxlength="8192" class="span12" name="adblock_extra_sources" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_extra_sources",""); %></textarea>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Per-source status (last update)</th>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <textarea rows="8" wrap="off" readonly class="span12" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_source_status",""); %></textarea>
-                                            </td>
-                                        </tr>
-                                    </table>
+                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
+                                        <h4 style="margin-top: 0;">General</h4>
+                                        <table class="table table-condensed" style="margin-bottom: 0;">
+                                            <tr>
+                                                <th width="35%">Adblock enabled</th>
+                                                <td>
+                                                    <select name="adblock_enable" class="input" onchange="updateStatusBadge();">
+                                                        <option value="1" <% nvram_match("adblock_enable","1","selected"); %>>Enabled</option>
+                                                        <option value="0" <% nvram_match("adblock_enable","0","selected"); %>>Disabled</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Update interval</th>
+                                                <td>
+                                                    <select name="adblock_interval" class="input" onchange="updateScheduleHint();">
+                                                        <option value="weekly" <% nvram_match("adblock_interval","weekly","selected"); %>>Weekly</option>
+                                                        <option value="daily" <% nvram_match("adblock_interval","daily","selected"); %>>Daily</option>
+                                                        <option value="12h" <% nvram_match("adblock_interval","12h","selected"); %>>Every 12 hours</option>
+                                                        <option value="6h" <% nvram_match("adblock_interval","6h","selected"); %>>Every 6 hours</option>
+                                                        <option value="off" <% nvram_match("adblock_interval","off","selected"); %>>Disabled</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Update time</th>
+                                                <td>
+                                                    <input type="text" class="input-mini" name="adblock_update_hour" maxlength="2"
+                                                           value="<% nvram_get("adblock_update_hour"); %>"
+                                                           onchange="updateScheduleHint();" onkeyup="updateScheduleHint();"
+                                                           onKeyPress="return is_number(this,event);" />
+                                                    <span class="help-inline">:</span>
+                                                    <input type="text" class="input-mini" name="adblock_update_min" maxlength="2"
+                                                           value="<% nvram_get("adblock_update_min"); %>"
+                                                           onchange="updateScheduleHint();" onkeyup="updateScheduleHint();"
+                                                           onKeyPress="return is_number(this,event);" />
+                                                    <span class="help-inline">24-hour clock</span>
+                                                    <div class="help-block" id="scheduleHintInline" style="margin-bottom: 0;"></div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
 
-                                    <table width="100%" cellpadding="4" cellspacing="0" class="table">
-                                        <tr>
-                                            <th>Custom blocked domains</th>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <textarea rows="6" wrap="off" spellcheck="false" maxlength="16384" class="span12" name="adblock_custom" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_custom",""); %></textarea>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Allowed domains (never block)</th>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <textarea rows="5" wrap="off" spellcheck="false" maxlength="16384" class="span12" name="adblock_allow" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_allow",""); %></textarea>
-                                            </td>
-                                        </tr>
-                                    </table>
+                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
+                                        <h4 style="margin-top: 0;">Sources</h4>
+                                        <p class="muted">Preset lists are downloaded during an update. Select the lists you want to use.</p>
+                                        <div class="row-fluid">
+                                            <div class="span6">
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="0" onchange="updateMask()"> AnudeepND</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="1" onchange="updateMask()"> AdAway official</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="2" onchange="updateMask()"> StevenBlack Unified</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="3" onchange="updateMask()"> Pete Lowe</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="4" onchange="updateMask()"> EasyList ad servers</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="5" onchange="updateMask()"> EasyPrivacy</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="6" onchange="updateMask()"> EasyList Hebrew</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="7" onchange="updateMask()"> EasyList Germany + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="8" onchange="updateMask()"> Liste FR + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="9" onchange="updateMask()"> EasyList Italy + EasyList</label>
+                                            </div>
+                                            <div class="span6">
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="10" onchange="updateMask()"> EasyList Dutch + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="11" onchange="updateMask()"> EasyList China + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="12" onchange="updateMask()"> EasyList Spanish + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="13" onchange="updateMask()"> EasyList Polish + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="14" onchange="updateMask()"> EasyList Portuguese + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="15" onchange="updateMask()"> RU AdList + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="16" onchange="updateMask()"> KoreanList + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="17" onchange="updateMask()"> IndianList + EasyList</label>
+                                                <label class="checkbox"><input type="checkbox" name="preset" value="18" onchange="updateMask()"> Nordic Filters + EasyList</label>
+                                            </div>
+                                        </div>
 
-                                    <table width="100%" cellpadding="4" cellspacing="0" class="table">
-                                        <tr>
-                                            <td style="border: 0 none;">
-                                                <center>
-                                                    <input type="button" class="btn btn-primary" style="width: 150px" onclick="applyRule();" value="Apply"/>
-                                                    <input type="button" class="btn" style="width: 150px" onclick="updateNow();" value="Update now"/>
-                                                    <input type="button" class="btn" style="width: 150px" onclick="resetDefaults();" value="Restore defaults"/>
-                                                </center>
-                                            </td>
-                                        </tr>
-                                    </table>
+                                        <table class="table table-condensed">
+                                            <tr>
+                                                <th>Extra source URLs <span class="muted">(one per line)</span></th>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    <textarea rows="4" wrap="off" spellcheck="false" maxlength="8192" class="span12"
+                                                              name="adblock_extra_sources" placeholder="https://example.com/hosts.txt"
+                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_extra_sources",""); %></textarea>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Per-source status <span class="muted">(last update)</span></th>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    <textarea rows="7" wrap="off" readonly class="span12"
+                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_source_status",""); %></textarea>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
 
-                                    <h3>Diagnostics</h3>
-                                    <table width="100%" cellpadding="4" cellspacing="0" class="table">
-                                        <tr>
-                                            <th width="35%">Test domain</th>
-                                            <td>
-                                                <input type="text" class="input" name="adblock_test_domain" value="<% nvram_get("adblock_test_domain"); %>" size="32">
-                                                <input type="button" class="btn" onclick="testDomain();" value="Test"/>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Test result</th>
-                                            <td><textarea rows="5" wrap="off" readonly class="span12" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_test_result",""); %></textarea></td>
-                                        </tr>
-                                        <tr>
-                                            <th>Update log</th>
-                                            <td>
-                                                <input type="button" class="btn" onclick="viewLog();" value="Show last 30 lines"/>
-                                                <textarea rows="6" wrap="off" readonly class="span12" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_update_log",""); %></textarea>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Blocked queries</th>
-                                            <td>
-                                                <input type="button" class="btn" onclick="refreshStats();" value="Refresh stats"/>
-                                                <textarea rows="8" wrap="off" readonly class="span12" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_stats",""); %></textarea>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Settings export</th>
-                                            <td>
-                                                <input type="button" class="btn" onclick="exportSettings();" value="Export"/>
-                                                <textarea rows="8" wrap="off" readonly class="span12" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_export",""); %></textarea>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Settings import</th>
-                                            <td>
-                                                <textarea rows="8" wrap="off" spellcheck="false" class="span12" name="adblock_import" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_import",""); %></textarea>
-                                                <input type="button" class="btn" onclick="importSettings();" value="Import"/>
-                                            </td>
-                                        </tr>
-                                    </table>
+                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
+                                        <h4 style="margin-top: 0;">Custom rules</h4>
+                                        <table class="table table-condensed" style="margin-bottom: 0;">
+                                            <tr>
+                                                <th>Custom blocked domains <span class="muted">(one per line)</span></th>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    <textarea rows="5" wrap="off" spellcheck="false" maxlength="16384" class="span12"
+                                                              name="adblock_custom" placeholder="example.com"
+                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_custom",""); %></textarea>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Allowed domains <span class="muted">(never block, one per line)</span></th>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    <textarea rows="5" wrap="off" spellcheck="false" maxlength="16384" class="span12"
+                                                              name="adblock_allow" placeholder="example.com"
+                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_allow",""); %></textarea>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+
+                                    <div class="row-fluid" style="margin: 0 10px 20px;">
+                                        <div class="span12" style="text-align: center;">
+                                            <button type="button" class="btn btn-primary" onclick="applyRule();"><i class="icon-ok icon-white"></i> Apply</button>
+                                            <button type="button" class="btn" onclick="updateNow();"><i class="icon-refresh"></i> Update now</button>
+                                            <button type="button" class="btn" onclick="resetDefaults();"><i class="icon-repeat"></i> Restore defaults</button>
+                                        </div>
+                                    </div>
+
+                                    <h3 style="margin-left: 10px;">Diagnostics</h3>
+                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
+                                        <table class="table table-condensed" style="margin-bottom: 0;">
+                                            <tr>
+                                                <th width="30%">Test domain</th>
+                                                <td>
+                                                    <input type="text" class="input" name="adblock_test_domain"
+                                                           value="<% nvram_get("adblock_test_domain"); %>" size="32" placeholder="example.com">
+                                                    <button type="button" class="btn" onclick="testDomain();"><i class="icon-search"></i> Test</button>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Test result</th>
+                                                <td>
+                                                    <textarea rows="5" wrap="off" readonly class="span12"
+                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_test_result",""); %></textarea>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Update log</th>
+                                                <td>
+                                                    <button type="button" class="btn" onclick="viewLog();"><i class="icon-list-alt"></i> Show last 30 lines</button>
+                                                    <textarea rows="6" wrap="off" readonly class="span12" style="margin-top: 6px; resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_update_log",""); %></textarea>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Blocked queries</th>
+                                                <td>
+                                                    <button type="button" class="btn" onclick="refreshStats();"><i class="icon-refresh"></i> Refresh stats</button>
+                                                    <textarea rows="7" wrap="off" readonly class="span12" style="margin-top: 6px; resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_stats",""); %></textarea>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Settings export</th>
+                                                <td>
+                                                    <button type="button" class="btn" onclick="exportSettings();"><i class="icon-download-alt"></i> Export</button>
+                                                    <textarea rows="7" wrap="off" readonly class="span12" style="margin-top: 6px; resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_export",""); %></textarea>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Settings import</th>
+                                                <td>
+                                                    <textarea rows="7" wrap="off" spellcheck="false" class="span12"
+                                                              name="adblock_import" placeholder="Paste an exported settings block here"
+                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_import",""); %></textarea>
+                                                    <button type="button" class="btn" style="margin-top: 6px;" onclick="importSettings();"><i class="icon-upload"></i> Import</button>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>
