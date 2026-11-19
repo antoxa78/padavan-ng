@@ -3,6 +3,10 @@
 ROOTDIR=`pwd`
 export ROOTDIR=$ROOTDIR
 
+# The firmware revision is compiled into rc; force it to refresh when the
+# git hash changes.
+touch "$ROOTDIR/user/rc/common_ex.c"
+
 FAKEROOT='fakeroot'
 ${FAKEROOT} echo 1 2>&1 >/dev/null
 if [ $? -ne 0 ] ; then
