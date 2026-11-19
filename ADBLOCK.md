@@ -125,6 +125,7 @@ cross-midnight handling.
 | `/etc/storage/adblock/custom.allow` | allowlist (never block) |
 | `/etc/storage/adblock/wildcard.conf` | wildcard ad-network blocks |
 | `/etc/storage/adblock/dnsmasq.conf` | AP-mode resolver config |
+| `/etc/storage/adblock/resolv.conf` | AP-mode upstream resolver (main router) |
 | `/etc/storage/adblock/dnsmasq.d/adblock.conf` | router-mode include |
 | `/etc/storage/adblock/hosts.gz` | IPv4 list backup (NAND) |
 | `/usr/sbin/adblock/defaults/presets.conf` | preset source catalog |

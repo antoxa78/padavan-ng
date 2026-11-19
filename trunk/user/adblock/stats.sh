@@ -8,7 +8,7 @@ if [ ! -s "$LOG" ]; then
 fi
 
 TOTAL=$(grep -c -E ' is (0\.0\.0\.0|::1)$' "$LOG" 2>/dev/null)
-TOP=$(grep -E ' is (0\.0\.0\.0|::1)$' "$LOG" 2>/dev/null | awk '{print $2}' | sort | uniq -c | sort -nr | head -10)
+TOP=$(grep -E ' is (0\.0\.0\.0|::1)$' "$LOG" 2>/dev/null | sed -E 's/.* ([^ ]+) is (0\.0\.0\.0|::1)$/\1/' | sort | uniq -c | sort -nr | head -10)
 
 nvram set adblock_stats="Blocked queries in current window: $TOTAL
 Top blocked domains:

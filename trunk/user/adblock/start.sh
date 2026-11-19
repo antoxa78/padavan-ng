@@ -11,6 +11,21 @@ mkdir -p "$DIR" "$WORK"
 [ -f "$DIR/wildcard.conf" ] || cp "$BIN/defaults/wildcard.conf" "$DIR/wildcard.conf"
 [ -f "$DIR/dnsmasq.conf" ] || cp "$BIN/defaults/dnsmasq.conf" "$DIR/dnsmasq.conf"
 
+# dnsmasq 2.93 in this build ignores plain server= lines; migrate old configs
+# to the resolv-file form and always generate the upstream file.
+if [ -f "$DIR/dnsmasq.conf" ]; then
+    sed -i '/^server=/d; /^no-resolv$/d' "$DIR/dnsmasq.conf"
+    grep -q '^resolv-file=' "$DIR/dnsmasq.conf" || \
+        echo "resolv-file=/etc/storage/adblock/resolv.conf" >> "$DIR/dnsmasq.conf"
+fi
+
+# AP mode: use the main router (default gateway) as the upstream resolver.
+LANIP=$(ip -4 addr show br0 2>/dev/null | awk '/inet / {sub(/\/.*/,"",$2); print $2; exit}')
+GW=$(ip route 2>/dev/null | awk '/^default / {print $3; exit}')
+[ -z "$GW" ] && GW=$(awk -v lan="$LANIP" '/^nameserver/ && $2 != lan {print $2; exit}' /etc/resolv.conf 2>/dev/null)
+[ -z "$GW" ] && GW=192.168.31.1
+echo "nameserver $GW" > "$DIR/resolv.conf"
+
 # Action scripts used by the web UI.
 for a in adblock_apply.sh adblock_update.sh adblock_reset.sh adblock_test.sh adblock_log.sh adblock_stats.sh adblock_export.sh adblock_import.sh; do
     cp "$BIN/actions/$a" "/tmp/$a"
