@@ -13,8 +13,8 @@ CFLAGS += -ffunction-sections -fdata-sections -fvisibility=hidden -s -I. -I$(SHD
 CFLAGS += -I$(USERDIR)/wireless_tools
 CFLAGS += -I$(ROOTDIR)/$(LINUXDIR)/include/ralink
 
-# Disable/Enable ugly httpd_check
-#CFLAGS += -DHTTPD_CHECK
+# Restart httpd automatically if it stops answering
+CFLAGS += -DHTTPD_CHECK
 
 LDFLAGS += -Wl,--gc-sections -L. -lm
 LDFLAGS += -L$(USERDIR)/wireless_tools -liw

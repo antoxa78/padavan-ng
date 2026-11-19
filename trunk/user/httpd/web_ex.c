@@ -167,7 +167,8 @@ sys_script(char *name)
 			char path_env[64];
 			snprintf(path_env, sizeof(path_env), "PATH=%s", SYS_EXEC_PATH_OPT);
 			putenv(path_env);
-			doSystem("%s >/tmp/syscmd.log 2>&1\n", SystemCmd);
+			/* Never let a console command block httpd forever. */
+			doSystem("timeout 120 %s >/tmp/syscmd.log 2>&1\n", SystemCmd);
 			SystemCmd[0] = '\0';
 		} else {
 			system("echo -n > /tmp/syscmd.log\n");
