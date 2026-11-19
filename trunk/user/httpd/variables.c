@@ -196,6 +196,7 @@
 			{"adblock_enable", "", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_sources", "File", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_custom", "File", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_allow", "File", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_interval", "", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_status", "", NULL, FALSE},
 			{0,0,0,0}

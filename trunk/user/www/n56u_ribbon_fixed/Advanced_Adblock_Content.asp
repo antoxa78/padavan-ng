@@ -99,7 +99,8 @@ function done_validating(action) {
                                 <div class="row-fluid">
                                     <div id="tabMenu" class="submenuBlock"></div>
                                     <div class="alert alert-info" style="margin: 10px;">
-                                        DNS blocklist for clients connected through this AP. Requires AP mode.
+                                        DNS blocklist for clients connected through this router/AP.
+                                        AP mode uses a separate resolver; router mode integrates with the system dnsmasq.
                                         The list is downloaded on first update; check <b>/tmp/adblock-update.log</b> for progress.
                                     </div>
 
@@ -144,6 +145,14 @@ function done_validating(action) {
                                         <tr>
                                             <td>
                                                 <textarea rows="7" wrap="off" spellcheck="false" maxlength="16384" class="span12" name="adblock_custom" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_custom",""); %></textarea>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Allowed domains (never block)</th>
+                                        </tr>
+                                        <tr>
+                                            <td>
+                                                <textarea rows="6" wrap="off" spellcheck="false" maxlength="16384" class="span12" name="adblock_allow" style="resize:none; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_allow",""); %></textarea>
                                             </td>
                                         </tr>
                                     </table>

@@ -14,9 +14,19 @@ fi
 echo $$ > "$LOCK"
 trap 'rm -f "$LOCK"' EXIT
 
-[ -s "$SOURCES" ] || { logger -t adblock "missing $SOURCES"; exit 1; }
+fail_update() {
+    logger -t adblock "$1"
+    nvram set adblock_status="$1"
+    nvram commit
+    rm -f "$LOCK"
+    "$BIN/start.sh" >/dev/null 2>&1
+    exit 1
+}
 
-rm -f "$WORK"/src.* "$WORK"/hosts.v4.new "$WORK"/hosts.v6.new "$WORK"/hosts.gz.new "$WORK"/hosts
+[ -s "$SOURCES" ] || fail_update "update failed: missing sources"
+[ -s "$DIR/custom.allow" ] || echo '# no allowlist' > "$DIR/custom.allow"
+
+rm -f "$WORK"/src.* "$WORK"/hosts.v4.new "$WORK"/hosts.v6.new "$WORK"/hosts.gz.new "$WORK"/hosts.gz.bak "$WORK"/hosts
 N=0
 OK=0
 while IFS= read -r url; do
@@ -36,15 +46,17 @@ while IFS= read -r url; do
 done < "$SOURCES"
 
 if [ "$OK" -eq 0 ]; then
-    logger -t adblock "update failed: no sources downloaded"
-    exit 1
+    fail_update "update failed: no sources downloaded"
 fi
+
+# Keep the previous gzip in /tmp as a rollback copy.
+[ -f "$DIR/hosts.gz" ] && cp "$DIR/hosts.gz" "$WORK/hosts.gz.bak"
 
 # Free the live lists before building new ones; dnsmasq keeps them in memory.
 rm -f "$WORK/hosts.v4" "$WORK/hosts.v6"
 
-# Normalize hosts files and domain-only lists, then deduplicate (IPv4 list).
-set -- "$WORK"/src.*
+# Normalize, apply the allowlist, then deduplicate (IPv4 list).
+set -- "$DIR/custom.allow" "$WORK"/src.*
 [ -f "$DIR/custom.hosts" ] && set -- "$@" "$DIR/custom.hosts"
 if ! awk '
 function clean(d) {
@@ -58,6 +70,24 @@ function clean(d) {
     if (d !~ /^[a-z0-9_.-]+$/) return "";
     return d;
 }
+function allowed(d, a) {
+    if (d in allow) return 1;
+    for (a in allow) {
+        if (index(d, "." a) == length(d) - length(a)) return 1;
+    }
+    return 0;
+}
+NR==FNR {
+    sub(/#.*/, "");
+    gsub(/\r/, "");
+    gsub(/^[ \t]+/, ""); gsub(/[ \t]+$/, "");
+    n = split($0, a, /[ \t]+/);
+    if (n == 0) next;
+    d = (n > 1 ? a[n] : a[1]);
+    d = tolower(d); sub(/\.$/, "", d);
+    if (d != "" && d !~ /:/ && d !~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) allow[d] = 1;
+    next;
+}
 {
     sub(/#.*/, "");
     gsub(/\r/, "");
@@ -65,51 +95,61 @@ function clean(d) {
     n = split($0, a, /[ \t]+/);
     if (n == 0) next;
     if (a[1] == "0.0.0.0" || a[1] == "127.0.0.1" || a[1] == "::1" || a[1] == "::" || a[1] == "255.255.255.255") {
-        for (i = 2; i <= n; i++) { d = clean(a[i]); if (d != "") print "0.0.0.0 " d; }
+        for (i = 2; i <= n; i++) { d = clean(a[i]); if (d != "" && !allowed(d)) print "0.0.0.0 " d; }
     } else if (n == 1) {
-        d = clean(a[1]); if (d != "" && d ~ /\./) print "0.0.0.0 " d;
+        d = clean(a[1]); if (d != "" && d ~ /\./ && !allowed(d)) print "0.0.0.0 " d;
     }
 }' "$@" | sort -u > "$WORK/hosts.v4.new"; then
-    logger -t adblock "merge failed"
-    rm -f "$WORK/hosts.v4.new"
-    exit 1
+    fail_update "update failed: merge error"
 fi
 rm -f "$WORK"/src.*
 
 LINES=$(wc -l < "$WORK/hosts.v4.new")
 if [ "$LINES" -lt 1000 ]; then
-    logger -t adblock "update failed: only $LINES domains"
-    rm -f "$WORK/hosts.v4.new"
-    exit 1
+    fail_update "update rejected: only $LINES domains"
 fi
+if [ "$LINES" -gt 500000 ]; then
+    fail_update "update rejected: $LINES domains is too many"
+fi
+
+for d in example.com google.com github.com raw.githubusercontent.com apple.com microsoft.com whatsapp.com paypal.com; do
+    if grep -qx "0.0.0.0 $d" "$WORK/hosts.v4.new"; then
+        fail_update "update rejected: critical domain $d blocked"
+    fi
+done
 chmod 644 "$WORK/hosts.v4.new"
 
 # Build the matching IPv6 blocklist.
 if ! awk '{print "::1 " $2}' "$WORK/hosts.v4.new" > "$WORK/hosts.v6.new"; then
-    logger -t adblock "could not build IPv6 list"
-    rm -f "$WORK/hosts.v6.new"
-    exit 1
+    fail_update "update failed: IPv6 list error"
 fi
 chmod 644 "$WORK/hosts.v6.new"
 
 # Keep a compressed copy of the IPv4 list in NAND.
-gzip -9 -c "$WORK/hosts.v4.new" > "$WORK/hosts.gz.new" || { logger -t adblock "gzip failed"; exit 1; }
-gzip -t "$WORK/hosts.gz.new" || { logger -t adblock "gzip test failed"; rm -f "$WORK/hosts.gz.new"; exit 1; }
+gzip -9 -c "$WORK/hosts.v4.new" > "$WORK/hosts.gz.new" || fail_update "update failed: gzip error"
+gzip -t "$WORK/hosts.gz.new" || fail_update "update failed: gzip test error"
 
 GZ_SIZE=$(wc -c < "$WORK/hosts.gz.new")
+if [ "$GZ_SIZE" -gt 4000000 ]; then
+    fail_update "update rejected: gzip is too large"
+fi
+
 OLD_SIZE=0
 [ -f "$DIR/hosts" ] && OLD_SIZE=$(wc -c < "$DIR/hosts")
 OLD_GZ=0
 [ -f "$DIR/hosts.gz" ] && OLD_GZ=$(wc -c < "$DIR/hosts.gz")
 FREE=$(df -k /etc | awk 'NR==2 {print $4 * 1024}')
 AVAIL=$((FREE + OLD_SIZE + OLD_GZ))
+PERSISTED=0
 if [ "$AVAIL" -gt $((GZ_SIZE + 65536)) ]; then
     rm -f "$DIR/hosts" "$DIR/hosts.gz"
     if cp "$WORK/hosts.gz.new" "$DIR/hosts.gz"; then
         chmod 644 "$DIR/hosts.gz"
+        PERSISTED=1
     else
         rm -f "$DIR/hosts.gz"
-        logger -t adblock "could not save hosts.gz"
+        [ -f "$WORK/hosts.gz.bak" ] && cp "$WORK/hosts.gz.bak" "$DIR/hosts.gz"
+        logger -t adblock "could not save hosts.gz; previous list restored"
     fi
 else
     logger -t adblock "not enough /etc space for hosts.gz ($GZ_SIZE > $AVAIL)"
@@ -118,17 +158,35 @@ fi
 # Swap in the new live lists.
 mv "$WORK/hosts.v4.new" "$WORK/hosts.v4"
 mv "$WORK/hosts.v6.new" "$WORK/hosts.v6"
-rm -f "$WORK/hosts.gz.new"
+rm -f "$WORK/hosts.gz.new" "$WORK/hosts.gz.bak"
 
 if [ "$(nvram get adblock_enable)" != "0" ]; then
-    if [ -s "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then
-        kill -HUP "$(cat "$PID")"
+    if [ "$(nvram get sw_mode)" = "3" ]; then
+        if [ -s "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then
+            kill -HUP "$(cat "$PID")"
+        else
+            "$BIN/restart.sh"
+        fi
     else
-        "$BIN/restart.sh"
+        if pidof dnsmasq >/dev/null 2>&1; then
+            killall -SIGHUP dnsmasq
+        else
+            if [ -x /tmp/restart_dhcpd ]; then
+                /tmp/restart_dhcpd
+            else
+                killall dnsmasq 2>/dev/null
+                sleep 1
+                /usr/sbin/dnsmasq
+            fi
+        fi
     fi
 fi
 
-nvram set adblock_status="$LINES domains, $(date '+%Y-%m-%d %H:%M')"
+if [ "$PERSISTED" = "1" ]; then
+    nvram set adblock_status="$LINES domains, $(date '+%Y-%m-%d %H:%M')"
+else
+    nvram set adblock_status="$LINES domains (not saved), $(date '+%Y-%m-%d %H:%M')"
+fi
 nvram commit
 /sbin/mtd_storage.sh save >/dev/null 2>&1
 logger -t adblock "updated: $LINES domains from $OK/$N sources"

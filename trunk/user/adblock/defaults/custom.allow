@@ -1,0 +1,14 @@
+# Domains that must never be blocked, including their subdomains.
+# One domain per line. Lines starting with # are ignored.
+#
+# Safety defaults for messaging, payments, updates and this firmware's own
+# blocklist downloads. Remove a line if you prefer stricter blocking.
+whatsapp.com
+whatsapp.net
+paypal.com
+microsoft.com
+windowsupdate.com
+apple.com
+icloud.com
+github.com
+raw.githubusercontent.com

@@ -11,7 +11,11 @@ This fork adds a DNS blocklist service and a settings page to Padavan-ng.
 - Daily or weekly updates, plus a "Update now" button
 - Watchdog every minute
 - Settings page: **Advanced → Customization → Adblock**
-- Custom domains textarea
+- Custom blocked domains textarea
+- Allowlist textarea (domains and subdomains that are never blocked)
+- Wildcard blocks for major ad networks (`address=/domain/0.0.0.0` + `::1`)
+- AP mode and router mode
+- Update rejection for critical domains, with previous-list rollback
 - Status line with the last domain count/update time
 
 ## Build
@@ -72,19 +76,24 @@ Further candidates (kept by default to avoid breaking their UI pages):
 |---|---|
 | `/usr/sbin/adblock/` | scripts and defaults (firmware) |
 | `/etc/storage/adblock/sources.conf` | source URLs |
-| `/etc/storage/adblock/custom.hosts` | manual domains |
-| `/etc/storage/adblock/dnsmasq.conf` | resolver config |
+| `/etc/storage/adblock/custom.hosts` | manual blocked domains |
+| `/etc/storage/adblock/custom.allow` | allowlist (never block) |
+| `/etc/storage/adblock/wildcard.conf` | wildcard ad-network blocks |
+| `/etc/storage/adblock/dnsmasq.conf` | AP-mode resolver config |
+| `/etc/storage/adblock/dnsmasq.d/adblock.conf` | router-mode include |
 | `/etc/storage/adblock/hosts.gz` | IPv4 list backup (NAND) |
 | `/tmp/adblock/hosts.v4` | live IPv4 list |
 | `/tmp/adblock/hosts.v6` | live IPv6 list |
 | `/tmp/adblock_apply.sh` | UI apply action |
 | `/tmp/adblock_update.sh` | UI update action |
 
-## Mode requirement
+## Modes
 
-The current design starts a separate dnsmasq and redirects client DNS, so the
-router must be in **AP mode** (`sw_mode=3`). In router mode the service exits
-without starting a second resolver.
+- **AP mode** (`sw_mode=3`): starts a separate dnsmasq, redirects IPv4 DNS,
+  and drops IPv6 DNS so clients fall back to the filtered resolver.
+- **Router mode**: integrates with the firmware's own dnsmasq through
+  `conf-dir=/etc/storage/adblock/dnsmasq.d` in
+  `/etc/storage/dnsmasq/dnsmasq.conf`.
 
 ## Settings page
 
@@ -93,7 +102,7 @@ After flashing, open:
 **Advanced → Customization → Adblock**
 
 The page supports enable/disable, daily/weekly/off updates, source URLs,
-custom domains, status, and "Update now".
+custom blocked domains, allowed domains, status, and "Update now".
 
 ## Recovery
 

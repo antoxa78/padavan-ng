@@ -3,11 +3,12 @@ BIN=/usr/sbin/adblock
 DIR=/etc/storage/adblock
 
 SRC=$(nvram get adblock_sources)
-if [ -n "$SRC" ]; then
-    printf '%s\n' "$SRC" > "$DIR/sources.conf"
-else
-    cp "$BIN/defaults/sources.conf" "$DIR/sources.conf"
+if [ -z "$SRC" ]; then
+    SRC="$(cat "$BIN/defaults/sources.conf")"
+    nvram set adblock_sources="$SRC"
+    nvram commit
 fi
+printf '%s\n' "$SRC" > "$DIR/sources.conf"
 
 CUSTOM=$(nvram get adblock_custom)
 if [ -n "$CUSTOM" ]; then
@@ -15,6 +16,14 @@ if [ -n "$CUSTOM" ]; then
 else
     : > "$DIR/custom.hosts"
 fi
+
+ALLOW=$(nvram get adblock_allow)
+if [ -z "$ALLOW" ]; then
+    ALLOW='# no allowlist'
+    nvram set adblock_allow="$ALLOW"
+    nvram commit
+fi
+printf '%s\n' "$ALLOW" > "$DIR/custom.allow"
 
 if [ "$(nvram get adblock_enable)" = "0" ]; then
     "$BIN/stop.sh"
