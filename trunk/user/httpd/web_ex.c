@@ -87,6 +87,61 @@ static char next_host[128] = {0};
 static char SystemCmd[128] = {0};
 static int  group_del_map[MAX_GROUP_COUNT+2];
 
+static int
+valid_https_cn(const char *s)
+{
+	const unsigned char *p = (const unsigned char *)s;
+
+	if (!p || !*p)
+		return 0;
+	while (*p) {
+		if (!((*p >= 'a' && *p <= 'z') ||
+		      (*p >= 'A' && *p <= 'Z') ||
+		      (*p >= '0' && *p <= '9') ||
+		      *p == '.' || *p == '-'))
+			return 0;
+		p++;
+	}
+	return 1;
+}
+
+static const char *
+safe_cert_bits(const char *bits)
+{
+	static const char *const allowed[] = {
+		"1024", "2048", "4096",
+		"prime256v1", "secp384r1", "secp521r1",
+		NULL
+	};
+	int i;
+
+	if (!bits)
+		return "2048";
+	for (i = 0; allowed[i]; i++) {
+		if (!strcmp(bits, allowed[i]))
+			return allowed[i];
+	}
+	return "2048";
+}
+
+static void
+shell_escape_single(char *dst, size_t dstlen, const char *src)
+{
+	size_t j = 0;
+
+	if (!dst || dstlen == 0)
+		return;
+	for (; src && *src && j + 5 < dstlen; src++) {
+		if (*src == '\'') {
+			memcpy(dst + j, "'\\''", 4);
+			j += 4;
+		} else {
+			dst[j++] = *src;
+		}
+	}
+	dst[j] = '\0';
+}
+
 extern struct evDesc events_desc[];
 extern int auth_nvram_changed;
 #if defined (SUPPORT_HTTPS)
@@ -3405,10 +3460,18 @@ apply_cgi(const char *url, webs_t wp)
 		char *common_name = websGetVar(wp, "common_name", "");
 		char *rsa_bits = websGetVar(wp, "rsa_bits", "1024");
 		int days_valid = atoi(websGetVar(wp, "days_valid", "365"));
+		char cn_escaped[512];
+
 		if (strlen(common_name) < 1)
 			common_name = "client@ovpn";
+		if (days_valid < 1)
+			days_valid = 365;
+		if (days_valid > 36500)
+			days_valid = 36500;
+		shell_escape_single(cn_escaped, sizeof(cn_escaped), common_name);
 		if (get_login_safe())
-			sys_result = doSystem("/sbin/ovpn_export_client '%s' %s %d", common_name, rsa_bits, days_valid);
+			sys_result = doSystem("/sbin/ovpn_export_client '%s' '%s' %d",
+				cn_escaped, safe_cert_bits(rsa_bits), days_valid);
 #endif
 		websWrite(wp, "{\"sys_result\": %d}", sys_result);
 		return 0;
@@ -3420,10 +3483,18 @@ apply_cgi(const char *url, webs_t wp)
 		char *common_name = websGetVar(wp, "common_name", "");
 		char *rsa_bits = websGetVar(wp, "rsa_bits", "1024");
 		int days_valid = atoi(websGetVar(wp, "days_valid", "365"));
+		char cn_escaped[512];
+
 		if (strlen(common_name) < 1)
 			common_name = "OpenVPN Server";
+		if (days_valid < 1)
+			days_valid = 365;
+		if (days_valid > 36500)
+			days_valid = 36500;
+		shell_escape_single(cn_escaped, sizeof(cn_escaped), common_name);
 		if (get_login_safe())
-			sys_result = doSystem("/usr/bin/openvpn-cert.sh %s -n '%s' -b %s -d %d", "server", common_name, rsa_bits, days_valid);
+			sys_result = doSystem("/usr/bin/openvpn-cert.sh %s -n '%s' -b '%s' -d %d",
+				"server", cn_escaped, safe_cert_bits(rsa_bits), days_valid);
 #endif
 		websWrite(wp, "{\"sys_result\": %d}", sys_result);
 		return 0;
@@ -3435,10 +3506,23 @@ apply_cgi(const char *url, webs_t wp)
 		char *common_name = websGetVar(wp, "common_name", "");
 		char *rsa_bits = websGetVar(wp, "rsa_bits", "1024");
 		int days_valid = atoi(websGetVar(wp, "days_valid", "365"));
+
 		if (strlen(common_name) < 1)
 			common_name = nvram_safe_get("lan_ipaddr_t");
-		if (get_login_safe())
-			sys_result = doSystem("/usr/bin/https-cert.sh -n '%s' -b %s -d %d", common_name, rsa_bits, days_valid);
+		if (strlen(common_name) < 1)
+			common_name = nvram_safe_get("lan_ipaddr");
+		if (strlen(common_name) < 1)
+			common_name = "my.router";
+		if (days_valid < 1)
+			days_valid = 365;
+		if (days_valid > 36500)
+			days_valid = 36500;
+		if (get_login_safe() && valid_https_cn(common_name)) {
+			sys_result = doSystem("/usr/bin/https-cert.sh -n '%s' -b '%s' -d %d",
+				common_name, safe_cert_bits(rsa_bits), days_valid);
+		} else if (get_login_safe()) {
+			httpd_log("%s: invalid certificate common name", "https-cert");
+		}
 #endif
 		websWrite(wp, "{\"sys_result\": %d}", sys_result);
 		return 0;
