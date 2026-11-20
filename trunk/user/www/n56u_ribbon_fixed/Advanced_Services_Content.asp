@@ -75,6 +75,14 @@ function initial(){
 		http_proto_change();
 	}
 	change_crond_enabled();
+	updateCertCards();
+	['httpssl.ca.crt', 'httpssl.dh1024.pem', 'httpssl.server.crt', 'httpssl.server.key'].forEach(function(name) {
+		var el = document.form[name];
+		if (el) {
+			el.addEventListener('input', updateCertCards);
+			el.addEventListener('change', updateCertCards);
+		}
+	});
 }
 
 function applyRule(){
@@ -167,7 +175,7 @@ function flashing_btn_gen(is_shown){
 function reset_btn_gen(is_refresh){
 	var $btn=$j('#https_gen_bn');
 	$btn.removeClass('alert-error').removeClass('alert-success');
-	$btn.val('<#VPNS_GenNew#>');
+	$btn.val('Generate certificate');
 	if (is_refresh)
 		location.href = location.href;
 }
@@ -233,6 +241,50 @@ function saveCACert() {
 	}, 1000);
 }
 
+function certText(name) {
+	var el = document.form[name];
+	return el && el.value ? el.value.replace(/^\s+|\s+$/g, '') : '';
+}
+
+function setCertCardState(cardId, present, required) {
+	var card = document.getElementById(cardId);
+	if (!card)
+		return;
+	var state = card.querySelector('.https-file-state');
+	if (!state)
+		return;
+	if (present) {
+		state.className = 'https-file-state pull-right label label-success';
+		state.innerHTML = 'Loaded';
+	} else {
+		state.className = 'https-file-state pull-right label ' + (required ? 'label-important' : 'label');
+		state.innerHTML = required ? 'Missing' : 'Empty';
+	}
+}
+
+function updateCertCards() {
+	var ca = certText('httpssl.ca.crt');
+	var dh = certText('httpssl.dh1024.pem');
+	var crt = certText('httpssl.server.crt');
+	var key = certText('httpssl.server.key');
+
+	setCertCardState('https_card_ca', ca, false);
+	setCertCardState('https_card_dh', dh, false);
+	setCertCardState('https_card_crt', crt, true);
+	setCertCardState('https_card_key', key, true);
+
+	var summary = document.getElementById('httpsCertSummary');
+	if (summary) {
+		var ready = crt && key;
+		summary.className = 'label ' + (ready ? 'label-success' : 'label-important');
+		summary.innerHTML = ready ? 'Certificate loaded' : 'Certificate missing';
+	}
+
+	var dl = document.getElementById('caDownloadBtn');
+	if (dl)
+		dl.disabled = !ca;
+}
+
 function sshd_auth_change(){
 	var auth = document.form.sshd_enable.value;
 	var v = (auth != "0") ? 1 : 0;
@@ -265,6 +317,56 @@ function change_crond_enabled(){
     .nav-tabs > li > a {
         padding-right: 8px;
         padding-left: 8px;
+    }
+    .https-file-card {
+        border: 1px solid #e1e5ea;
+        border-radius: 6px;
+        padding: 10px 12px;
+        background: #fff;
+        box-sizing: border-box;
+        height: 100%;
+    }
+    .https-file-head {
+        margin-bottom: 4px;
+        font-weight: 600;
+    }
+    .https-file-desc {
+        font-size: 11px;
+        line-height: 1.35;
+        margin-bottom: 8px;
+        min-height: 30px;
+    }
+    .https-file-state {
+        font-weight: normal;
+    }
+    .https-pem {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        background: #fbfcfd;
+        resize: vertical;
+    }
+    .https-gen-panel {
+        background: #f7f9fb;
+        border: 1px solid #e1e5ea;
+        border-radius: 6px;
+        padding: 12px 14px;
+    }
+    .https-cert-grid > div {
+        margin-bottom: 10px;
+    }
+    .https-cert-grid > .span6:nth-child(odd) {
+        margin-left: 0;
+    }
+    @media (max-width: 767px) {
+        .https-cert-grid > .span6 {
+            margin-left: 0;
+        }
+    }
+    .https-cert-grid .https-file-card {
+        height: 100%;
+    }
+    .https-cert-grid .collapse {
+        margin-top: 8px;
     }
 </style>
 </head>
@@ -365,88 +467,138 @@ function change_crond_enabled(){
                                         </tr>
                                     </table>
 
-                                    <table width="100%" cellpadding="4" cellspacing="0" class="table" id="tbl_https_certs" style="display:none">
-                                        <tr>
-                                            <th colspan="4" style="background-color: #E3E3E3;"><#Adm_System_https_certs#></th>
-                                        </tr>
-                                        <tr id="row_https_gen" style="display:none">
-                                            <td align="right" style="text-align:right;">
-                                                <span class="caption-bold">Server CN:</span>
-                                                <input id="https_gen_cn" type="text" maxlength="32" size="10" style="width: 105px;" placeholder="my.domain" onKeyPress="return is_string(this,event);"/>
-                                            </td>
-                                            <td align="left">
-                                                <span class="caption-bold">Bits:</span>
-                                                <select id="https_gen_rb" class="input" style="width: 108px;">
-                                                    <option value="1024">RSA 1024 (*)</option>
-                                                    <option value="2048">RSA 2048</option>
-                                                    <option value="4096">RSA 4096</option>
-                                                    <option value="prime256v1">EC P-256</option>
-                                                    <option value="secp384r1">EC P-384</option>
-                                                    <option value="secp521r1">EC P-521</option>
-                                                </select>
-                                            </td>
-                                            <td align="left">
-                                                <span class="caption-bold">Days valid:</span>
-                                                <input id="https_gen_dv" type="text" maxlength="5" size="10" style="width: 35px;" value="365" onKeyPress="return is_number(this,event);"/>
-                                            </td>
-                                            <td align="left">
-                                                <input id="https_gen_bn" type="button" class="btn" style="width: 145px; outline:0" onclick="create_server_cert();" value="<#VPNS_GenNew#>"/>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="4" style="padding-bottom: 0px;">
-                                                <a href="javascript:spoiler_toggle('ca.crt')"><span>Root CA Certificate (optional)</span></a>
-                                                <div id="ca.crt" style="display:none;">
-                                                    <textarea rows="8" wrap="off" spellcheck="false" maxlength="8192" class="span12" name="httpssl.ca.crt" style="resize:vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("httpssl.ca.crt",""); %></textarea>
+                                    <div id="tbl_https_certs" style="display:none; margin: 0 10px 14px;">
+                                        <div class="well" style="padding: 0; margin-bottom: 10px; overflow: hidden;">
+                                            <div class="clearfix" style="padding: 12px 14px; background: #f5f7fa; border-bottom: 1px solid #e3e6ea;">
+                                                <div class="pull-left">
+                                                    <h4 style="margin: 0;"><i class="icon-lock"></i> HTTPS certificate</h4>
+                                                    <div class="muted" style="margin-top: 3px;">Encrypts the router administration page. Files are stored in <code>/etc/storage/https</code>.</div>
                                                 </div>
-                                                <div style="margin-top: 6px;">
-                                                    <button type="button" class="btn btn-primary" onclick="saveCACert();"><i class="icon-download icon-white"></i> Save CA certificate</button>
-                                                    <span class="muted">Downloads <code>router-ca.crt</code></span>
+                                                <div class="pull-right" style="padding-top: 5px;">
+                                                    <span id="httpsCertSummary" class="label">Checking&hellip;</span>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="4" style="padding-bottom: 0px; border-top: 0 none;">
-                                                <a href="javascript:spoiler_toggle('dh1024.pem')"><span>Diffie-Hellman PEM (optional)</span></a>
-                                                <div id="dh1024.pem" style="display:none;">
-                                                    <textarea rows="8" wrap="off" spellcheck="false" maxlength="8192" class="span12" name="httpssl.dh1024.pem" style="resize:vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("httpssl.dh1024.pem",""); %></textarea>
+                                            </div>
+                                            <div style="padding: 12px 14px;">
+                                                <div class="row-fluid https-cert-grid">
+                                                    <div class="span6">
+                                                        <div class="https-file-card" id="https_card_ca">
+                                                            <div class="https-file-head clearfix">
+                                                                <span class="pull-left"><span class="label label-info">CA</span> Root CA certificate</span>
+                                                                <span class="https-file-state pull-right label">checking</span>
+                                                            </div>
+                                                            <div class="https-file-desc muted">Optional. Signs the server certificate. Install it on client devices to remove browser warnings.</div>
+                                                            <button type="button" class="btn btn-mini" data-toggle="collapse" data-target="#cert_ca"><i class="icon-eye-open"></i> Show / edit</button>
+                                                            <button type="button" id="caDownloadBtn" class="btn btn-mini btn-primary" onclick="saveCACert();"><i class="icon-download icon-white"></i> Download CA</button>
+                                                            <div id="cert_ca" class="collapse">
+                                                                <textarea rows="7" wrap="off" spellcheck="false" maxlength="8192" class="span12 https-pem" name="httpssl.ca.crt"><% nvram_dump("httpssl.ca.crt",""); %></textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="span6">
+                                                        <div class="https-file-card" id="https_card_dh">
+                                                            <div class="https-file-head clearfix">
+                                                                <span class="pull-left"><span class="label">DH</span> Diffie-Hellman parameters</span>
+                                                                <span class="https-file-state pull-right label">checking</span>
+                                                            </div>
+                                                            <div class="https-file-desc muted">Optional. Used for forward secrecy with older TLS clients. Leave empty unless you have a specific reason.</div>
+                                                            <button type="button" class="btn btn-mini" data-toggle="collapse" data-target="#cert_dh"><i class="icon-eye-open"></i> Show / edit</button>
+                                                            <div id="cert_dh" class="collapse">
+                                                                <textarea rows="7" wrap="off" spellcheck="false" maxlength="8192" class="span12 https-pem" name="httpssl.dh1024.pem"><% nvram_dump("httpssl.dh1024.pem",""); %></textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="span6">
+                                                        <div class="https-file-card" id="https_card_crt">
+                                                            <div class="https-file-head clearfix">
+                                                                <span class="pull-left"><span class="label label-success">CRT</span> Server certificate</span>
+                                                                <span class="https-file-state pull-right label">checking</span>
+                                                            </div>
+                                                            <div class="https-file-desc muted">Required. The public certificate presented by the router. Paste a PEM certificate or generate a new one below.</div>
+                                                            <button type="button" class="btn btn-mini" data-toggle="collapse" data-target="#cert_crt"><i class="icon-eye-open"></i> Show / edit</button>
+                                                            <div id="cert_crt" class="collapse">
+                                                                <textarea rows="7" wrap="off" spellcheck="false" maxlength="8192" class="span12 https-pem" name="httpssl.server.crt"><% nvram_dump("httpssl.server.crt",""); %></textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="span6">
+                                                        <div class="https-file-card" id="https_card_key">
+                                                            <div class="https-file-head clearfix">
+                                                                <span class="pull-left"><span class="label label-important">KEY</span> Server private key</span>
+                                                                <span class="https-file-state pull-right label">checking</span>
+                                                            </div>
+                                                            <div class="https-file-desc muted">Required. Must match the server certificate. Keep this value private; it is never sent to clients.</div>
+                                                            <button type="button" class="btn btn-mini" data-toggle="collapse" data-target="#cert_key"><i class="icon-eye-open"></i> Show / edit</button>
+                                                            <div id="cert_key" class="collapse">
+                                                                <textarea rows="7" wrap="off" spellcheck="false" maxlength="8192" class="span12 https-pem" name="httpssl.server.key"><% nvram_dump("httpssl.server.key",""); %></textarea>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="4" style="padding-bottom: 0px; border-top: 0 none;">
-                                                <a href="javascript:spoiler_toggle('server.crt')"><span>Server Certificate (required)</span></a>
-                                                <div id="server.crt" style="display:none;">
-                                                    <textarea rows="8" wrap="off" spellcheck="false" maxlength="8192" class="span12" name="httpssl.server.crt" style="resize:vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("httpssl.server.crt",""); %></textarea>
+                                            </div>
+                                        </div>
+
+                                        <div id="row_https_gen" class="https-gen-panel" style="display:none; margin-bottom: 10px;">
+                                            <div class="clearfix" style="margin-bottom: 8px;">
+                                                <h4 class="pull-left" style="margin: 0;"><i class="icon-refresh"></i> Generate a new certificate</h4>
+                                                <span class="pull-right muted hidden-phone" style="padding-top: 3px;">Creates a new CA and server certificate</span>
+                                            </div>
+                                            <div class="row-fluid">
+                                                <div class="span4">
+                                                    <label class="caption-bold" for="https_gen_cn">Server CN</label>
+                                                    <input id="https_gen_cn" type="text" maxlength="64" class="input-block-level" value="my.router" placeholder="my.router" autocomplete="off" onKeyPress="return is_string(this,event);">
+                                                    <div class="help-block">Hostname or IP clients use. The router LAN IP is added automatically.</div>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="4" style="padding-bottom: 0px; border-top: 0 none;">
-                                                <a href="javascript:spoiler_toggle('server.key')"><span>Server Private Key (required)</span></a>
-                                                <div id="server.key" style="display:none;">
-                                                    <textarea rows="8" wrap="off" spellcheck="false" maxlength="8192" class="span12" name="httpssl.server.key" style="resize:vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("httpssl.server.key",""); %></textarea>
+                                                <div class="span3">
+                                                    <label class="caption-bold" for="https_gen_rb">Key type</label>
+                                                    <select id="https_gen_rb" class="input-block-level">
+                                                        <option value="1024">RSA 1024</option>
+                                                        <option value="2048" selected>RSA 2048</option>
+                                                        <option value="4096">RSA 4096</option>
+                                                        <option value="prime256v1">EC P-256</option>
+                                                        <option value="secp384r1">EC P-384</option>
+                                                        <option value="secp521r1">EC P-521</option>
+                                                    </select>
+                                                    <div class="help-block">RSA 2048 is recommended.</div>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="4">
-                                                <div class="alert alert-info" style="margin-bottom: 0;">
-                                                    <strong>How to use the CA certificate</strong><br>
-                                                    Download <code>router-ca.crt</code>, then install it as a trusted root CA on the devices that should trust this router's HTTPS page.
-                                                    <ul style="margin: 6px 0 0 18px;">
-                                                        <li><strong>Windows:</strong> double-click the file &rarr; Install Certificate &rarr; Local Machine &rarr; Place all certificates in <em>Trusted Root Certification Authorities</em>.</li>
-                                                        <li><strong>Linux:</strong> <code>sudo cp router-ca.crt /usr/local/share/ca-certificates/ &amp;&amp; sudo update-ca-certificates</code>.</li>
-                                                        <li><strong>Android:</strong> Settings &rarr; Security &rarr; Encryption &amp; credentials &rarr; Install a certificate &rarr; CA certificate.</li>
-                                                        <li><strong>iOS/iPadOS:</strong> install the profile, then Settings &rarr; General &rarr; About &rarr; Certificate Trust Settings &rarr; enable full trust.</li>
-                                                        <li><strong>Firefox:</strong> Settings &rarr; Privacy &amp; Security &rarr; Certificates &rarr; View Certificates &rarr; Authorities &rarr; Import.</li>
+                                                <div class="span2">
+                                                    <label class="caption-bold" for="https_gen_dv">Days valid</label>
+                                                    <input id="https_gen_dv" type="text" maxlength="5" class="input-block-level" value="3650" onKeyPress="return is_number(this,event);">
+                                                </div>
+                                                <div class="span3">
+                                                    <label class="caption-bold">&nbsp;</label>
+                                                    <input id="https_gen_bn" type="button" class="btn btn-primary btn-block" onclick="create_server_cert();" value="Generate certificate">
+                                                </div>
+                                            </div>
+                                            <div class="alert alert-warning" style="margin: 10px 0 0; padding: 8px 12px;">
+                                                <i class="icon-warning-sign"></i> Regenerating creates a <strong>new CA</strong>. Reinstall the downloaded CA on every device that trusted the old one.
+                                            </div>
+                                        </div>
+
+                                        <div class="well" style="padding: 12px 14px; margin-bottom: 0;">
+                                            <div class="row-fluid">
+                                                <div class="span6">
+                                                    <h4 style="margin-top: 0;"><i class="icon-globe"></i> Use the certificate</h4>
+                                                    <p>Open the router with a name or address present in the certificate:</p>
+                                                    <ul>
+                                                        <li><code>https://my.router</code> &mdash; add <code>192.168.31.10 my.router</code> to the client's hosts file.</li>
+                                                        <li><code>https://192.168.31.10</code> &mdash; the router LAN IP is included automatically.</li>
                                                     </ul>
-                                                    Use <code>https://my.router</code> (add <code>192.168.31.10 my.router</code> to the device's hosts file) so the certificate name matches.
-                                                    The certificate is self-signed; only install it on devices you control. If you regenerate it, install the new CA again.
+                                                    <p class="muted" style="margin-bottom: 0;">The certificate is self-signed. Only install the CA on devices you control.</p>
                                                 </div>
-                                            </td>
-                                        </tr>
-                                    </table>
+                                                <div class="span6">
+                                                    <h4 style="margin-top: 0;"><i class="icon-download-alt"></i> Install the CA</h4>
+                                                    <p class="muted" style="margin-bottom: 6px;">Download <code>router-ca.crt</code> from the Root CA card, then:</p>
+                                                    <ul style="margin-bottom: 0;">
+                                                        <li><strong>Windows:</strong> double-click &rarr; Install Certificate &rarr; Local Machine &rarr; Trusted Root Certification Authorities.</li>
+                                                        <li><strong>Linux:</strong> <code>sudo cp router-ca.crt /usr/local/share/ca-certificates/ &amp;&amp; sudo update-ca-certificates</code></li>
+                                                        <li><strong>Android:</strong> Settings &rarr; Security &rarr; Encryption &amp; credentials &rarr; Install a certificate &rarr; CA certificate.</li>
+                                                        <li><strong>iOS/iPadOS:</strong> install the profile, then enable full trust under Certificate Trust Settings.</li>
+                                                        <li><strong>Firefox:</strong> Settings &rarr; Privacy &amp; Security &rarr; Certificates &rarr; Authorities &rarr; Import.</li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     <table width="100%" cellpadding="4" cellspacing="0" class="table" style="margin-bottom: 8px;">
                                         <tr>
