@@ -21,5 +21,7 @@ for sec in presets extra custom allow interval update_hour update_min enable; do
     VAL=$(awk -v s="[$sec]" '$0==s{f=1;next} /^\[/{f=0} f' /tmp/adblock-import.txt)
     nvram set "$var"="$VAL"
 done
+nvram set adblock_import=""
+rm -f /tmp/adblock-import.txt
 nvram commit
 /usr/sbin/adblock/save.sh

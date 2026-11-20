@@ -21,6 +21,9 @@ while IFS='|' read -r idx label url; do
 done < "$PRESETS"
 
 EXTRA=$(nvram get adblock_extra_sources)
+# Strip angle brackets so a stored URL cannot break the page's textarea.
+EXTRA=$(printf '%s\n' "$EXTRA" | tr -d '<>')
+nvram set adblock_extra_sources="$EXTRA"
 if [ -n "$EXTRA" ]; then
     printf '%s\n' "$EXTRA" | while IFS= read -r url; do
         case "$url" in
