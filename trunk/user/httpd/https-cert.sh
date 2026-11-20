@@ -55,9 +55,45 @@ is_cn_valid() {
   return 0
 }
 
+is_ipv4() {
+  case "$1" in
+    ''|*[!0-9.]*) return 1 ;;
+  esac
+  echo "$1" | awk -F. '
+    NF == 4 {
+      for (i = 1; i <= 4; i++)
+        if ($i !~ /^[0-9]+$/ || $i > 255) exit 1
+      exit 0
+    }
+    { exit 1 }
+  '
+}
+
+add_ip_san() {
+  local ip="$1"
+  is_ipv4 "$ip" || return 0
+  case ",$IP_SANS," in
+    *",IP:$ip,"*) ;;
+    *) IP_SANS="${IP_SANS:+$IP_SANS,}IP:$ip" ;;
+  esac
+}
+
+get_lan_ipv4() {
+  local ip n
+  # AP mode stores the live address in lan_ipaddr_t; router mode uses
+  # lan_ipaddr.  Fall back to the br0 address if NVRAM is not populated.
+  for n in lan_ipaddr_t lan_ipaddr; do
+    ip=$(nvram get "$n" 2>/dev/null)
+    is_ipv4 "$ip" && { echo "$ip"; return 0; }
+  done
+  ip=$(ip -4 addr show br0 2>/dev/null | awk '/inet / {sub(/\/.*/,"",$2); print $2; exit}')
+  is_ipv4 "$ip" && { echo "$ip"; return 0; }
+  return 1
+}
+
 create_cert() {
   [ -z "$CN" ] && func_help
-  if ! is_cn_valid $CN ; then
+  if ! is_ipv4 "$CN" && ! is_cn_valid $CN ; then
      echo >&2
      echo "Warning: $CN is not a valid host name." >&2
      echo >&2
@@ -75,6 +111,15 @@ create_cert() {
   openssl list -1 --digest-commands 2>&1 | grep -q 'sha256' && DGST_ALG="-sha256"
 
   rm -f $SSL_EXT_FILE
+  # DNS name plus the router's LAN IPv4 address, so both
+  # https://my.router and https://<lan-ip> validate without a warning.
+  local SAN="DNS:${CN}"
+  [ "$CN" != "my.router" ] && SAN="$SAN,DNS:my.router"
+  IP_SANS=""
+  add_ip_san "$CN"
+  add_ip_san "$(get_lan_ipv4)"
+  [ -n "$IP_SANS" ] && SAN="$SAN,$IP_SANS"
+
   cat > $SSL_EXT_FILE << EOF
 [ server ]
 basicConstraints=CA:FALSE
@@ -82,7 +127,7 @@ subjectKeyIdentifier=hash
 authorityKeyIdentifier=keyid,issuer:always
 extendedKeyUsage=serverAuth,clientAuth
 keyUsage=critical,digitalSignature,keyEncipherment
-subjectAltName=DNS:${CN},DNS:my.router
+subjectAltName=${SAN}
 EOF
 
   local C_PARAM="rsa:${RSA_BITS}"
