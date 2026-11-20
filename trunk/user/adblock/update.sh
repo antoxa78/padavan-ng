@@ -42,6 +42,27 @@ http_date_to_local() {
     date -d "@$_lm_epoch" '+%Y-%m-%d %H:%M' 2>/dev/null
 }
 
+# GitHub raw does not send Last-Modified; ask the commits API for the file.
+github_api_url() {
+    _gh=${1#https://raw.githubusercontent.com/}
+    [ "$_gh" != "$1" ] || return 1
+    _owner=${_gh%%/*}; _gh=${_gh#*/}
+    _repo=${_gh%%/*}; _gh=${_gh#*/}
+    _branch=${_gh%%/*}; _path=${_gh#*/}
+    [ -n "$_owner" ] && [ -n "$_repo" ] && [ -n "$_branch" ] && [ -n "$_path" ] || return 1
+    _path=$(printf '%s' "$_path" | sed 's/+/%2B/g; s/ /%20/g')
+    printf 'https://api.github.com/repos/%s/%s/commits?path=%s&sha=%s&per_page=1' \
+        "$_owner" "$_repo" "$_path" "$_branch"
+}
+
+utc_iso_to_local() {
+    [ -n "$1" ] || return 1
+    _iso=$(printf '%s' "$1" | sed 's/\.[0-9]*Z$/Z/')
+    _iso=$(date -D '%Y-%m-%dT%H:%M:%SZ' -d "$_iso" '+%Y-%m-%d %H:%M' 2>/dev/null) || return 1
+    _iso_epoch=$(date -u -D '%Y-%m-%d %H:%M' -d "$_iso" '+%s' 2>/dev/null) || return 1
+    date -d "@$_iso_epoch" '+%Y-%m-%d %H:%M' 2>/dev/null
+}
+
 # HTTPS downloads fail with certificate errors until NTP sets the clock.
 wait_for_clock() {
     _clock_wait=0
@@ -113,6 +134,20 @@ while IFS= read -r url; do
         LM=$(grep -i '^[[:space:]]*Last-Modified:' "$HDR" 2>/dev/null | tail -1 |
             sed 's/^[^:]*:[[:space:]]*//; s/\r$//')
         SRC_TIME=$(http_date_to_local "$LM" 2>/dev/null)
+        if [ -z "$SRC_TIME" ]; then
+            case "$url" in
+                https://raw.githubusercontent.com/*)
+                    API=$(github_api_url "$url" 2>/dev/null)
+                    if [ -n "$API" ] && wget -q -T 10 -U "adblock-router" \
+                            -O "$WORK/github.json" "$API" 2>/dev/null; then
+                        GH_DATE=$(sed -n 's/.*"date"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+                            "$WORK/github.json" | head -1)
+                        SRC_TIME=$(utc_iso_to_local "$GH_DATE" 2>/dev/null)
+                    fi
+                    rm -f "$WORK/github.json"
+                    ;;
+            esac
+        fi
         SIZE=$(wc -c < "$WORK/src.$N")
         # Count domains this file can actually contribute, not raw lines.
         # A website URL downloads HTML with plenty of lines but no hosts data.
