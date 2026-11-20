@@ -56,6 +56,11 @@ mv "$DIR/custom.allow.new" "$DIR/custom.allow"
 # active list.  This stays correct even if the user changes settings and then
 # changes them back before pressing "Update list".
 CONFIG_HASH=$( { cat "$DIR/sources.conf"; echo '---'; cat "$DIR/custom.hosts"; echo '---'; cat "$DIR/custom.allow"; } | md5sum | cut -d' ' -f1)
+OLD_HASH=$(nvram get adblock_config_hash)
+CHANGED_TS=$(nvram get adblock_config_changed)
+if [ "$CONFIG_HASH" != "$OLD_HASH" ] || [ -z "$CHANGED_TS" ]; then
+    nvram set adblock_config_changed="$(date '+%Y-%m-%d %H:%M')"
+fi
 APPLIED_HASH=$(nvram get adblock_applied_hash)
 if [ "$CONFIG_HASH" = "$APPLIED_HASH" ]; then
     DIRTY=0

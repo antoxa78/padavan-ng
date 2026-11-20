@@ -490,6 +490,9 @@ function fixStatusText() {
     var la = document.getElementById('lastAttempt');
     if (la && !la.innerHTML.trim())
         la.innerHTML = 'never';
+    var cc = document.getElementById('configChanged');
+    if (cc && !cc.innerHTML.trim())
+        cc.innerHTML = 'never';
     var bs = document.getElementById('blockedStats');
     if (bs && !bs.innerHTML.trim())
         bs.innerHTML = 'Blocked today: 0 &middot; this month: 0';
@@ -674,7 +677,7 @@ function done_validating(action) {
                                                     </span>
                                                 </div>
                                                 <div class="muted" style="margin-top: 8px;">
-                                                    Last successful list update: <span id="lastUpdate"><% nvram_get_x("", "adblock_last_success"); %></span><br>
+                                                    Last successful blocklist build: <span id="lastUpdate"><% nvram_get_x("", "adblock_last_success"); %></span><br>
                                                     Last attempt: <span id="lastAttempt"><% nvram_get_x("", "adblock_last_attempt"); %></span>
                                                 </div>
                                                 <div class="muted adblock-status-line" id="blockedStats"><% nvram_get_x("", "adblock_stats_short"); %></div>
@@ -753,6 +756,7 @@ function done_validating(action) {
                                             </div>
                                         </div>
                                         <p class="muted" id="presetSummary" style="margin-bottom: 0;">Loading preset sources...</p>
+                                        <p class="muted" id="presetChanged" style="margin-bottom: 0;">Sources last changed: <span id="configChanged"><% nvram_get_x("", "adblock_config_changed"); %></span></p>
                                         <div id="presetBody" style="display:none; margin-top: 10px;">
                                             <p class="muted">Preset lists are downloaded during an update. Uncheck a source to remove it from the next build.</p>
                                             <div class="help-block" id="presetHint" style="margin-bottom: 10px;"></div>
@@ -761,7 +765,7 @@ function done_validating(action) {
                                                     <tr>
                                                         <th width="40">Use</th>
                                                         <th>Source</th>
-                                                        <th width="34%">Last result <span class="muted">(time)</span></th>
+                                                        <th width="34%">Last download <span class="muted">(time)</span></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="presetRows"></tbody>
