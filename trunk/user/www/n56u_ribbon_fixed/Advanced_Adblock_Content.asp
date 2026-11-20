@@ -44,6 +44,7 @@ if (isNaN(presetMask)) presetMask = 127;
 var currentPhase = '<% nvram_get_x("", "adblock_phase"); %>';
 var configDirty = '<% nvram_get_x("", "adblock_config_dirty"); %>' === '1';
 var actionPending = false;
+var actionFinished = false;
 var silentAction = false;
 var formDirty = false;
 
@@ -87,9 +88,10 @@ function bindDirtyTracking() {
     document.form.addEventListener('change', markDirty);
 }
 
-function actionComplete() {
-    if (!actionPending)
+function finishAction() {
+    if (actionFinished || (!actionPending && !silentAction))
         return;
+    actionFinished = true;
     actionPending = false;
     if (silentAction) {
         silentAction = false;
@@ -98,7 +100,12 @@ function actionComplete() {
         showExtraSaveStatus('Removed and saved. Press Update list to rebuild the blocklist.');
         return;
     }
+    formDirty = false;
     setTimeout(function() { location.reload(); }, 1200);
+}
+
+function actionComplete() {
+    finishAction();
 }
 
 function showExtraSaveStatus(msg) {
@@ -610,6 +617,7 @@ function submitAction(script, silent) {
     syncExtraSources();
     showLoading();
     actionPending = true;
+    actionFinished = false;
     silentAction = !!silent;
     document.form.action_mode.value = " Apply ";
     document.form.action_script.value = script;
@@ -638,7 +646,7 @@ function resetDefaults() {
 }
 
 function done_validating(action) {
-    refreshpage();
+    finishAction();
 }
 </script>
 </head>
