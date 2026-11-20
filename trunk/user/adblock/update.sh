@@ -32,6 +32,16 @@ nvram set adblock_status="updating..."
 
 SRC_STATUS=""
 
+# Convert an HTTP Last-Modified value (RFC 1123, GMT) to local time.
+http_date_to_local() {
+    [ -n "$1" ] || return 1
+    _lm_utc=$(date -D '%a, %d %b %Y %H:%M:%S GMT' -d "$1" '+%Y-%m-%d %H:%M' 2>/dev/null) ||
+        _lm_utc=$(date -D '%a, %d %b %Y %H:%M:%S UTC' -d "$1" '+%Y-%m-%d %H:%M' 2>/dev/null) ||
+        return 1
+    _lm_epoch=$(date -u -D '%Y-%m-%d %H:%M' -d "$_lm_utc" '+%s' 2>/dev/null) || return 1
+    date -d "@$_lm_epoch" '+%Y-%m-%d %H:%M' 2>/dev/null
+}
+
 fail_update() {
     REASON="$1"
     logger -t adblock "$REASON"
@@ -75,7 +85,11 @@ while IFS= read -r url; do
     N=$((N + 1))
     SRC_TS=$(date '+%m-%d %H:%M')
     nvram set adblock_progress="$N/$TOTAL sources"
-    if wget -q -T 30 -O "$WORK/src.$N" "$url"; then
+    HDR="$WORK/hdr.$N"
+    if wget -S -o "$HDR" -T 30 -O "$WORK/src.$N" "$url"; then
+        LM=$(grep -i '^[[:space:]]*Last-Modified:' "$HDR" 2>/dev/null | tail -1 |
+            sed 's/^[^:]*:[[:space:]]*//; s/\r$//')
+        SRC_TIME=$(http_date_to_local "$LM" 2>/dev/null)
         SIZE=$(wc -c < "$WORK/src.$N")
         # Count domains this file can actually contribute, not raw lines.
         # A website URL downloads HTML with plenty of lines but no hosts data.
@@ -83,20 +97,21 @@ while IFS= read -r url; do
             grep -cE '^(0\.0\.0\.0|127\.0\.0\.1|::1|::|255\.255\.255\.255)[[:space:]]+[a-zA-Z0-9_.-]+|^[a-zA-Z0-9_.-]+\.[a-zA-Z0-9_.-]+$')
         if [ "$SIZE" -gt 0 ] && [ "$SRC_LINES" -gt 0 ]; then
             OK=$((OK + 1))
-            SRC_STATUS="$SRC_STATUS$url|$SRC_LINES|ok|$SRC_TS
+            SRC_STATUS="$SRC_STATUS$url|$SRC_LINES|ok|$SRC_TS|$SRC_TIME
 "
         else
             logger -t adblock "no usable domains: $url"
-            SRC_STATUS="$SRC_STATUS$url|0|empty|$SRC_TS
+            SRC_STATUS="$SRC_STATUS$url|0|empty|$SRC_TS|$SRC_TIME
 "
             rm -f "$WORK/src.$N"
         fi
     else
         logger -t adblock "download failed: $url"
-        SRC_STATUS="$SRC_STATUS$url|0|failed|$SRC_TS
+        SRC_STATUS="$SRC_STATUS$url|0|failed|$SRC_TS|
 "
         rm -f "$WORK/src.$N"
     fi
+    rm -f "$HDR"
 done < "$WORK/config.sources"
 
 echo "sources: $OK/$TOTAL downloaded ($(($(date +%s) - T0))s)"

@@ -44,6 +44,7 @@ if (isNaN(presetMask)) presetMask = 127;
 var currentPhase = '<% nvram_get_x("", "adblock_phase"); %>';
 var configDirty = '<% nvram_get_x("", "adblock_config_dirty"); %>' === '1';
 var actionPending = false;
+var silentAction = false;
 var formDirty = false;
 
 var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -90,7 +91,27 @@ function actionComplete() {
     if (!actionPending)
         return;
     actionPending = false;
+    if (silentAction) {
+        silentAction = false;
+        hideLoading();
+        formDirty = false;
+        showExtraSaveStatus('Removed and saved. Press Update list to rebuild the blocklist.');
+        return;
+    }
     setTimeout(function() { location.reload(); }, 1200);
+}
+
+function showExtraSaveStatus(msg) {
+    var el = document.getElementById('extraSaveStatus');
+    if (!el)
+        return;
+    el.innerHTML = escapeHtml(msg);
+    el.style.display = '';
+    if (showExtraSaveStatus.timer)
+        clearTimeout(showExtraSaveStatus.timer);
+    showExtraSaveStatus.timer = setTimeout(function() {
+        el.style.display = 'none';
+    }, 6000);
 }
 
 function refreshPage() {
@@ -354,7 +375,7 @@ function sourceStatusMap() {
             continue;
         var p = line.split('|');
         if (p.length >= 3)
-            map[p[0]] = { lines: p[1], state: p[2], time: p[3] || '' };
+            map[p[0]] = { lines: p[1], state: p[2], time: p[3] || '', sourceTime: p[4] || '' };
     }
     return map;
 }
@@ -363,16 +384,22 @@ function statusLabel(st) {
     var text;
     if (!st)
         text = 'awaiting update';
-    else if (st.state === 'ok')
+    else if (st.state === 'ok') {
         text = st.lines + ' lines';
-    else if (st.state === 'failed')
+        text += st.sourceTime ? ' · updated ' + st.sourceTime : ' · source time unknown';
+    } else if (st.state === 'failed') {
         text = 'download failed';
-    else if (st.state === 'empty')
+        if (st.time)
+            text += ' · ' + st.time;
+    } else if (st.state === 'empty') {
         text = 'no usable domains';
-    else
+        if (st.sourceTime)
+            text += ' · updated ' + st.sourceTime;
+    } else {
         text = st.state;
-    if (st && st.time)
-        text += ' · ' + st.time;
+        if (st.time)
+            text += ' · ' + st.time;
+    }
     return text;
 }
 
@@ -389,6 +416,7 @@ function updateSourceStatuses() {
         var st = map[els[i].getAttribute('data-url')];
         els[i].innerHTML = escapeHtml(statusLabel(st));
         els[i].className = 'src-status ' + statusClass(st);
+        els[i].title = st && st.time ? 'Downloaded ' + st.time : '';
     }
     var extras = document.querySelectorAll('.extra-source');
     for (var j = 0; j < extras.length; j++) {
@@ -444,14 +472,25 @@ function addExtraSource(url) {
 
 function removeExtraSource(btn) {
     var row = btn.parentNode;
-    row.parentNode.removeChild(row);
+    var parent = row.parentNode;
+    var next = row.nextSibling;
+    parent.removeChild(row);
     markDirty();
     syncExtraSources();
     var list = document.getElementById('extraSourcesList');
     if (list && list.children.length === 0)
         list.innerHTML = '<div class="muted" id="noExtraSources">No extra sources.</div>';
-    // Persist the removal now; the row's Apply button disappears with the row.
-    saveSettings();
+    if (!validateSchedule() || !validateSources()) {
+        // The rest of the form is invalid; put the row back and let the user fix it.
+        var hint = document.getElementById('noExtraSources');
+        if (hint)
+            hint.parentNode.removeChild(hint);
+        parent.insertBefore(row, next);
+        syncExtraSources();
+        return;
+    }
+    // Persist the removal now without reloading the page.
+    submitAction('adblock_save.sh', true);
 }
 
 function syncExtraSources() {
@@ -490,9 +529,6 @@ function fixStatusText() {
     var la = document.getElementById('lastAttempt');
     if (la && !la.innerHTML.trim())
         la.innerHTML = 'never';
-    var cc = document.getElementById('configChanged');
-    if (cc && !cc.innerHTML.trim())
-        cc.innerHTML = 'never';
     var bs = document.getElementById('blockedStats');
     if (bs && !bs.innerHTML.trim())
         bs.innerHTML = 'Blocked today: 0 &middot; this month: 0';
@@ -567,13 +603,14 @@ function scheduleAutoRefresh() {
         setTimeout(function() { location.reload(); }, 8000);
 }
 
-function submitAction(script) {
+function submitAction(script, silent) {
     if (!login_safe())
         return;
     updateMask();
     syncExtraSources();
     showLoading();
     actionPending = true;
+    silentAction = !!silent;
     document.form.action_mode.value = " Apply ";
     document.form.action_script.value = script;
     document.form.current_page.value = "Advanced_Adblock_Content.asp";
@@ -756,7 +793,6 @@ function done_validating(action) {
                                             </div>
                                         </div>
                                         <p class="muted" id="presetSummary" style="margin-bottom: 0;">Loading preset sources...</p>
-                                        <p class="muted" id="presetChanged" style="margin-bottom: 0;">Sources last changed: <span id="configChanged"><% nvram_get_x("", "adblock_config_changed"); %></span></p>
                                         <div id="presetBody" style="display:none; margin-top: 10px;">
                                             <p class="muted">Preset lists are downloaded during an update. Uncheck a source to remove it from the next build.</p>
                                             <div class="help-block" id="presetHint" style="margin-bottom: 10px;"></div>
@@ -765,7 +801,7 @@ function done_validating(action) {
                                                     <tr>
                                                         <th width="40">Use</th>
                                                         <th>Source</th>
-                                                        <th width="34%">Last download <span class="muted">(time)</span></th>
+                                                        <th width="34%">Source updated <span class="muted">(server time)</span></th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="presetRows"></tbody>
@@ -782,6 +818,7 @@ function done_validating(action) {
                                         </div>
                                         <p class="muted">These rows are for links to <strong>hosts/blocklist files</strong>, not websites you want to block. Add a row, paste the list URL, then press <strong>Apply</strong>. To block a site, add its domain under <strong>Custom blocked domains</strong> below. <strong>Remove</strong> deletes the row and saves immediately.</p>
                                         <div id="extraSourcesList"></div>
+                                        <div id="extraSaveStatus" class="muted" style="display:none; margin-top:6px;"></div>
                                     </div>
 
                                     <div class="well" style="margin: 0 10px 10px; padding: 12px;">
