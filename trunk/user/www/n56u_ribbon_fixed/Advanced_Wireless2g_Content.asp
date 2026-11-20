@@ -22,6 +22,7 @@
 <script type="text/javascript" src="/help_wl.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
 <script type="text/javascript" src="/md5.js"></script>
+<script type="text/javascript" src="/wifi_override.js"></script>
 <script>
 var $j = jQuery.noConflict();
 
@@ -34,6 +35,8 @@ $j(document).ready(function() {
 <script>
 
 function initial(){
+	wifiOverrideUntil = parseInt('<% nvram_get_x("", "wifi_sched_override_until"); %>', 10) || 0;
+	wifiOverridePage = 'Advanced_Wireless2g_Content.asp';
 	show_banner(1);
 	show_menu(5,1,1);
 	show_footer();
@@ -82,6 +85,7 @@ function initial(){
 	automode_hint();
 	enableExtChRows(document.form.rt_gmode);
 	insertExtChannelOption();
+	updateWifiOverrideStatus();
 }
 
 function applyRule(){
@@ -362,6 +366,22 @@ function validate_wlphrase(s, v, obj){
                                                 <input type="text" maxlength="2" style="width: 20px;" size="2" name="rt_radio_time2_x_startmin" onKeyPress="return is_number(this,event);"/>&nbsp;-&nbsp;
                                                 <input type="text" maxlength="2" style="width: 20px;" size="2" name="rt_radio_time2_x_endhour" onKeyPress="return is_number(this,event);"/>:
                                                 <input type="text" maxlength="2" style="width: 20px;" size="2" name="rt_radio_time2_x_endmin" onKeyPress="return is_number(this,event);"/>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Temporary override</th>
+                                            <td>
+                                                <select id="wifi_override_minutes" class="input">
+                                                    <option value="30">30 minutes</option>
+                                                    <option value="60" selected>1 hour</option>
+                                                    <option value="120">2 hours</option>
+                                                    <option value="240">4 hours</option>
+                                                    <option value="480">8 hours</option>
+                                                </select>
+                                                <button type="button" class="btn" onclick="setWifiOverride();"><i class="icon-time"></i> Keep Wi-Fi on</button>
+                                                <button type="button" class="btn btn-mini" onclick="setWifiOverride(0);">Cancel override</button>
+                                                <div class="help-block" id="wifiOverrideStatus" style="margin-bottom: 0;"></div>
+                                                <div class="help-block muted" style="margin-bottom: 0;">Overrides both bands and guest networks until the timer expires.</div>
                                             </td>
                                         </tr>
                                         <tr>

@@ -61,10 +61,57 @@ nvram set adblock_allow="$ALLOW"
 printf '%s\n' "$ALLOW" > "$DIR/custom.allow.new"
 mv "$DIR/custom.allow.new" "$DIR/custom.allow"
 
+# Wildcard domains are stored one per line in NVRAM and expanded into dnsmasq
+# address= rules.  Strip pasted URLs and wildcard prefixes so saves stay stable.
+WILD=$(nvram get adblock_wildcard)
+WILD=$(printf '%s\n' "$WILD" | tr -d '<>' | tr 'A-Z' 'a-z' |
+    sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|^https\?://||; s|/.*$||; s/^\*\.//; s/^\.//' |
+    grep -E '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$' |
+    awk 'NF && !seen[$0]++')
+nvram set adblock_wildcard="$WILD"
+{
+    echo "# Wildcard blocks: each entry matches the domain and all subdomains."
+    echo "# Generated from the Adblock settings page."
+    printf '%s\n' "$WILD" | while IFS= read -r d; do
+        [ -n "$d" ] && printf 'address=/%s/0.0.0.0\naddress=/%s/::1\n' "$d" "$d"
+    done
+} > "$DIR/wildcard.conf.new"
+mv "$DIR/wildcard.conf.new" "$DIR/wildcard.conf"
+
+DOH_BLOCK=$(nvram get adblock_doh_block)
+case "$DOH_BLOCK" in 0|1) ;; *) DOH_BLOCK=1;; esac
+nvram set adblock_doh_block="$DOH_BLOCK"
+REBIND=$(nvram get adblock_rebind)
+case "$REBIND" in 0|1) ;; *) REBIND=0;; esac
+nvram set adblock_rebind="$REBIND"
+
+{
+    echo "# Generated resolver options."
+    [ "$REBIND" = "1" ] && echo "stop-dns-rebind"
+    echo "conf-file=$DIR/doh.conf"
+} > "$DIR/options.conf.new"
+mv "$DIR/options.conf.new" "$DIR/options.conf"
+
+if [ "$DOH_BLOCK" = "1" ]; then
+    {
+        echo "# Block DNS-over-HTTPS endpoints so clients use this resolver."
+        echo "address=/use-application-dns.net/"
+        for d in use-application-dns.net mozilla.cloudflare-dns.com firefox.dns.nextdns.io \
+                 doh.opendns.com dns.google chrome.cloudflare-dns.com doh.dns.apple.com \
+                 dns.nextdns.io doh.pub dns.alidns.com doh.360.cn cloudflare-dns.com \
+                 dns.quad9.net doh.cleanbrowsing.org doh.adguard.com dns.adguard.com; do
+            printf 'address=/%s/0.0.0.0\naddress=/%s/::1\n' "$d" "$d"
+        done
+    } > "$DIR/doh.conf.new"
+else
+    echo "# DoH blocking disabled" > "$DIR/doh.conf.new"
+fi
+mv "$DIR/doh.conf.new" "$DIR/doh.conf"
+
 # Compare the saved configuration with the configuration used to build the
 # active list.  This stays correct even if the user changes settings and then
 # changes them back before pressing "Update list".
-CONFIG_HASH=$( { cat "$DIR/sources.conf"; echo '---'; cat "$DIR/custom.hosts"; echo '---'; cat "$DIR/custom.allow"; } | md5sum | cut -d' ' -f1)
+CONFIG_HASH=$( { cat "$DIR/sources.conf"; echo '---'; cat "$DIR/custom.hosts"; echo '---'; cat "$DIR/custom.allow"; echo '---'; cat "$DIR/wildcard.conf"; echo '---'; cat "$DIR/options.conf"; echo '---'; cat "$DIR/doh.conf"; } | md5sum | cut -d' ' -f1)
 APPLIED_HASH=$(nvram get adblock_applied_hash)
 if [ "$CONFIG_HASH" = "$APPLIED_HASH" ]; then
     DIRTY=0
@@ -74,6 +121,11 @@ fi
 
 nvram set adblock_sources="$(cat "$DIR/sources.conf")"
 nvram set adblock_config_hash="$CONFIG_HASH"
+
+PAUSE_UNTIL=$(nvram get adblock_pause_until)
+case "$PAUSE_UNTIL" in ''|*[!0-9]*) PAUSE_UNTIL=0;; esac
+PAUSED=0
+[ "$PAUSE_UNTIL" -gt "$(date +%s)" ] 2>/dev/null && PAUSED=1
 
 if [ "$(nvram get adblock_enable)" = "0" ]; then
     "$BIN/stop.sh" >/dev/null 2>&1
@@ -85,7 +137,11 @@ else
     if ADBLOCK_NO_UPDATE=1 "$BIN/start.sh" >/dev/null 2>&1; then
         nvram set adblock_phase=idle
         nvram set adblock_progress=""
-        if [ "$DIRTY" = "1" ]; then
+        if [ "$PAUSED" = "1" ]; then
+            nvram set adblock_phase=paused
+            nvram set adblock_config_dirty="$DIRTY"
+            nvram set adblock_status="paused (settings saved)"
+        elif [ "$DIRTY" = "1" ]; then
             nvram set adblock_config_dirty=1
             nvram set adblock_status="settings saved; update list to apply"
         else

@@ -204,6 +204,15 @@
 			{"adblock_interval", "", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_update_hour", "", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_update_min", "", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_wildcard", "", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_pause_minutes", "", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_allow_add", "", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_doh_block", "", NULL, EVM_BLOCK_UNSAFE},
+			{"adblock_rebind", "", NULL, EVM_BLOCK_UNSAFE},
+			{"wifi_sched_override_minutes", "", NULL, EVM_BLOCK_UNSAFE},
+			{"reboot_sched_enable", "", NULL, EVM_BLOCK_UNSAFE},
+			{"reboot_sched_time", "", NULL, EVM_BLOCK_UNSAFE},
+			{"reboot_sched_days", "", NULL, EVM_BLOCK_UNSAFE},
 			{0,0,0,0}
 		};
 

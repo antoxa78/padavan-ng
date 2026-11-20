@@ -24,6 +24,15 @@ echo "=== $START_TS update start ==="
 echo $$ > "$LOCK"
 trap 'rm -f "$LOCK"' EXIT
 
+# A paused adblock must not be rebuilt by a scheduled update.
+PAUSE_UNTIL=$(nvram get adblock_pause_until)
+case "$PAUSE_UNTIL" in ''|*[!0-9]*) PAUSE_UNTIL=0;; esac
+if [ "$PAUSE_UNTIL" -gt "$(date +%s)" ] 2>/dev/null; then
+    echo "=== update skipped: adblock is paused ==="
+    logger -t adblock "update skipped: paused"
+    exit 0
+fi
+
 nvram set adblock_phase=downloading
 nvram set adblock_progress="starting"
 nvram set adblock_update_started="$START_TS"
@@ -105,7 +114,13 @@ nvram set adblock_progress="starting"
 cp "$SOURCES" "$WORK/config.sources" 2>/dev/null || : > "$WORK/config.sources"
 cp "$DIR/custom.hosts" "$WORK/config.custom" 2>/dev/null || : > "$WORK/config.custom"
 cp "$DIR/custom.allow" "$WORK/config.allow" 2>/dev/null || : > "$WORK/config.allow"
-CONFIG_HASH=$( { cat "$WORK/config.sources"; echo '---'; cat "$WORK/config.custom"; echo '---'; cat "$WORK/config.allow"; } | md5sum | cut -d' ' -f1)
+cp "$DIR/wildcard.conf" "$WORK/config.wildcard" 2>/dev/null || : > "$WORK/config.wildcard"
+cp "$DIR/options.conf" "$WORK/config.options" 2>/dev/null || : > "$WORK/config.options"
+cp "$DIR/doh.conf" "$WORK/config.doh" 2>/dev/null || : > "$WORK/config.doh"
+CONFIG_HASH=$( { cat "$WORK/config.sources"; echo '---'; cat "$WORK/config.custom"; echo '---'; cat "$WORK/config.allow"; echo '---'; cat "$WORK/config.wildcard"; echo '---'; cat "$WORK/config.options"; echo '---'; cat "$WORK/config.doh"; } | md5sum | cut -d' ' -f1)
+# Resolver options (wildcard/DoH/rebind) are only read at startup, unlike the
+# addn-hosts lists which can be reloaded with SIGHUP.
+OPTIONS_HASH=$( { cat "$WORK/config.wildcard"; echo '---'; cat "$WORK/config.options"; echo '---'; cat "$WORK/config.doh"; } | md5sum | cut -d' ' -f1)
 
 rm -f "$WORK"/src.* "$WORK"/hosts.v4.raw "$WORK"/hosts.v4.new "$WORK"/hosts.v6.new \
       "$WORK"/hosts.gz.new "$WORK"/hosts.gz.bak "$WORK"/hosts
@@ -300,14 +315,28 @@ QLOG_LINES=0
 [ -f "$QLOG" ] && QLOG_LINES=$(wc -l < "$QLOG")
 
 if [ "$(nvram get adblock_enable)" != "0" ]; then
+    APPLIED_OPTIONS_HASH=$(nvram get adblock_applied_options_hash)
+    NEED_FULL_RESTART=0
+    [ "$OPTIONS_HASH" != "$APPLIED_OPTIONS_HASH" ] && NEED_FULL_RESTART=1
+
     if [ "$(nvram get sw_mode)" = "3" ]; then
-        if [ -s "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then
+        if [ "$NEED_FULL_RESTART" = "1" ]; then
+            "$BIN/restart.sh" || fail_update "update failed: DNS restart failed"
+        elif [ -s "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then
             kill -HUP "$(cat "$PID")" || fail_update "update failed: DNS reload failed"
         else
             "$BIN/restart.sh" || fail_update "update failed: DNS restart failed"
         fi
     else
-        if pidof dnsmasq >/dev/null 2>&1; then
+        if [ "$NEED_FULL_RESTART" = "1" ]; then
+            if [ -x /tmp/restart_dhcpd ]; then
+                /tmp/restart_dhcpd || fail_update "update failed: DHCP/DNS restart failed"
+            else
+                killall dnsmasq 2>/dev/null
+                sleep 1
+                /usr/sbin/dnsmasq || fail_update "update failed: DNS start failed"
+            fi
+        elif pidof dnsmasq >/dev/null 2>&1; then
             killall -SIGHUP dnsmasq || fail_update "update failed: DNS reload failed"
         else
             if [ -x /tmp/restart_dhcpd ]; then
@@ -348,7 +377,7 @@ echo "saved: $PERSISTED ($(($(date +%s) - T0))s)"
 
 # If settings changed while the update was running, the list we just built is
 # from the snapshot.  Keep the dirty flag set so the UI asks for another run.
-LIVE_HASH=$( { cat "$SOURCES"; echo '---'; cat "$DIR/custom.hosts"; echo '---'; cat "$DIR/custom.allow"; } | md5sum | cut -d' ' -f1)
+LIVE_HASH=$( { cat "$SOURCES"; echo '---'; cat "$DIR/custom.hosts"; echo '---'; cat "$DIR/custom.allow"; echo '---'; cat "$DIR/wildcard.conf"; echo '---'; cat "$DIR/options.conf"; echo '---'; cat "$DIR/doh.conf"; } | md5sum | cut -d' ' -f1)
 if [ "$LIVE_HASH" = "$CONFIG_HASH" ] && [ "$PERSISTED" = "1" ]; then
     DIRTY=0
     STATUS="$LINES domains, $(date '+%Y-%m-%d %H:%M')"
@@ -364,6 +393,7 @@ nvram set adblock_source_status="$SRC_STATUS"
 nvram set adblock_last_success="$(date '+%Y-%m-%d %H:%M')"
 nvram set adblock_last_attempt="$(date '+%Y-%m-%d %H:%M') ok"
 nvram set adblock_applied_hash="$CONFIG_HASH"
+nvram set adblock_applied_options_hash="$OPTIONS_HASH"
 nvram set adblock_config_dirty="$DIRTY"
 nvram set adblock_phase=idle
 nvram set adblock_progress=""

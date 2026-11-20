@@ -27,6 +27,7 @@
 <script type="text/javascript" src="/help_wl.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
 <script type="text/javascript" src="/md5.js"></script>
+<script type="text/javascript" src="/qrcode.min.js"></script>
 <script>
 var $j = jQuery.noConflict();
 
@@ -227,6 +228,53 @@ function change_guest_auth_mode(mflag) {
 		inputCtrl(document.form.wl_guest_crypto, 0);
 		inputCtrl(document.form.wl_guest_wpa_psk, 0);
 	}
+}
+
+function qrEscape(s) {
+	return String(s).replace(/([\\;,:"])/g, '\\$1');
+}
+
+function guestQrText(ssid, psk, auth, hidden) {
+	var type = (auth === 'open') ? 'nopass' : 'WPA';
+	var text = 'WIFI:T:' + type + ';S:' + qrEscape(ssid) + ';';
+	if (type !== 'nopass' && psk)
+		text += 'P:' + qrEscape(psk) + ';';
+	if (hidden)
+		text += 'H:true;';
+	return text + ';';
+}
+
+function showGuestQR() {
+	var ssidEl = document.form.wl_guest_ssid;
+	var pskEl = document.form.wl_guest_wpa_psk;
+	var authEl = document.form.wl_guest_auth_mode;
+	var closedEl = document.form.wl_guest_closed;
+	var ssid = ssidEl ? ssidEl.value : '';
+	if (!ssid) {
+		alert('Enter the guest SSID first.');
+		if (ssidEl) ssidEl.focus();
+		return;
+	}
+	var auth = authEl ? authEl.value : 'psk';
+	var psk = pskEl ? pskEl.value : '';
+	if (auth !== 'open' && !psk) {
+		alert('Enter the guest Wi-Fi password first.');
+		if (pskEl) pskEl.focus();
+		return;
+	}
+	var hidden = closedEl && closedEl.value === '1';
+	var text = guestQrText(ssid, psk, auth, hidden);
+	var box = document.getElementById('guestQrBox');
+	if (!box)
+		return;
+	box.innerHTML = '';
+	if (typeof QRCode === 'undefined') {
+		alert('QR generator is not available.');
+		return;
+	}
+	new QRCode(box, { text: text, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+	var label = document.getElementById('guestQrText');
+	if (label) label.textContent = text;
 }
 </script>
 </head>
@@ -438,6 +486,15 @@ function change_guest_auth_mode(mflag) {
                                                     <input type="password" name="wl_guest_wpa_psk" id="wl_guest_wpa_psk" maxlength="64" size="32" value="" style="width: 175px;">
                                                     <button style="margin-left: -5px;" class="btn" type="button" onclick="passwordShowHide('wl_guest_wpa_psk');"><i class="icon-eye-close"></i></button>
                                                 </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <th>Wi-Fi QR code</th>
+                                            <td>
+                                                <button type="button" class="btn" onclick="showGuestQR();"><i class="icon-qrcode"></i> Show QR code</button>
+                                                <div id="guestQrBox" style="margin-top: 10px;"></div>
+                                                <div class="help-block" id="guestQrText"></div>
+                                                <div class="help-block muted" style="margin-bottom: 0;">Contains the guest SSID and password. Only show it to people you trust.</div>
                                             </td>
                                         </tr>
                                         <tr id="row_guest_13" style="display:none;">

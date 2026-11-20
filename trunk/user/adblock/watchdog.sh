@@ -24,6 +24,19 @@ if [ "$(nvram get adblock_enable)" = "0" ]; then
     exit 0
 fi
 
+# Pause handling must run before the list-repair checks below, because a
+# paused resolver intentionally has empty hosts files.
+PAUSE_UNTIL=$(nvram get adblock_pause_until)
+case "$PAUSE_UNTIL" in ''|*[!0-9]*) PAUSE_UNTIL=0;; esac
+NOW=$(date +%s)
+if [ "$PAUSE_UNTIL" -gt "$NOW" ] 2>/dev/null; then
+    exit 0
+fi
+if [ "$PAUSE_UNTIL" -gt 0 ] 2>/dev/null; then
+    "$BIN/resume.sh" >/dev/null 2>&1
+    exit 0
+fi
+
 if [ "$(nvram get sw_mode)" = "3" ]; then
     if [ -s "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null; then
         if [ -s "$WORK/hosts.v4" ] && [ -s "$WORK/hosts.v6" ]; then

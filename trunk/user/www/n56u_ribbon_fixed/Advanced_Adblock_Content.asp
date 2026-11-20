@@ -43,6 +43,8 @@ var presetMask = parseInt('<% nvram_get_x("", "adblock_presets"); %>');
 if (isNaN(presetMask)) presetMask = 127;
 var currentPhase = '<% nvram_get_x("", "adblock_phase"); %>';
 var configDirty = '<% nvram_get_x("", "adblock_config_dirty"); %>' === '1';
+var pauseUntil = parseInt('<% nvram_get_x("", "adblock_pause_until"); %>', 10);
+if (isNaN(pauseUntil)) pauseUntil = 0;
 var actionPending = false;
 var actionFinished = false;
 var formDirty = false;
@@ -62,10 +64,12 @@ function initial() {
     updateStatusBadge();
     updateDirtyNotice();
     updatePhaseText();
+    updatePauseState();
     updateSourceStatuses();
     updateScheduleHint();
     bindDirtyTracking();
     scheduleAutoRefresh();
+    setInterval(function() { updatePauseState(); updateStatusBadge(); }, 30000);
 }
 
 function escapeHtml(s) {
@@ -556,6 +560,9 @@ function updateStatusBadge() {
     if (!enabled) {
         cls = 'label-important';
         text = 'Disabled';
+    } else if (isPaused()) {
+        cls = 'label-warning';
+        text = 'Paused';
     } else if (isActivePhase()) {
         cls = 'label-warning';
         text = 'Updating';
@@ -577,6 +584,110 @@ function updateDirtyNotice() {
         return;
     var enabled = document.form.adblock_enable.value === '1';
     el.style.display = (configDirty && enabled) ? '' : 'none';
+}
+
+function isPaused() {
+    return pauseUntil > Math.floor(Date.now() / 1000);
+}
+
+function pauseTimeText() {
+    var d = new Date(pauseUntil * 1000);
+    return dayNames[d.getDay()] + ' ' + d.getDate() + ' ' + monthNames[d.getMonth()] +
+           ' ' + adblockPad2(d.getHours()) + ':' + adblockPad2(d.getMinutes());
+}
+
+function updatePauseState() {
+    var active = isPaused();
+    var idle = document.getElementById('pauseIdle');
+    var paused = document.getElementById('pauseActive');
+    var badge = document.getElementById('pauseBadge');
+    if (idle) idle.style.display = active ? 'none' : '';
+    if (paused) paused.style.display = active ? '' : 'none';
+    if (badge) {
+        badge.className = 'label ' + (active ? 'label-warning' : 'label-success');
+        badge.innerHTML = active ? 'Paused' : 'Active';
+    }
+    var until = document.getElementById('pauseUntilText');
+    if (until && active)
+        until.innerHTML = 'Paused until <strong>' + pauseTimeText() + '</strong>. DNS filtering is off until then.';
+}
+
+function pauseAdblock() {
+    var sel = document.getElementById('adblock_pause_minutes');
+    var min = sel ? parseInt(sel.value, 10) : 60;
+    if (isNaN(min) || min < 1)
+        min = 60;
+    if (!confirm('Pause DNS filtering for ' + min + ' minutes?\n\n' +
+                 'Ads will not be blocked until the pause ends or you resume manually.'))
+        return;
+    if (!window.fetch || !window.URLSearchParams) {
+        alert('This browser cannot pause Adblock. Please use a current browser.');
+        return;
+    }
+    var body = new URLSearchParams();
+    body.append('action_mode', ' Apply ');
+    body.append('action_script', 'adblock_pause.sh');
+    body.append('current_page', 'Advanced_Adblock_Content.asp');
+    body.append('next_page', '');
+    body.append('sid_list', 'General;');
+    body.append('adblock_pause_minutes', String(min));
+    showLoading();
+    fetch('/start_apply.htm', {
+        method: 'POST',
+        body: body,
+        credentials: 'same-origin'
+    }).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        location.reload();
+    }).catch(function() {
+        hideLoading();
+        alert('Could not pause Adblock.');
+    });
+}
+
+function resumeAdblock() {
+    if (!window.fetch || !window.URLSearchParams) {
+        alert('This browser cannot resume Adblock. Please use a current browser.');
+        return;
+    }
+    var body = new URLSearchParams();
+    body.append('action_mode', ' Apply ');
+    body.append('action_script', 'adblock_resume.sh');
+    body.append('current_page', 'Advanced_Adblock_Content.asp');
+    body.append('next_page', '');
+    body.append('sid_list', 'General;');
+    showLoading();
+    fetch('/start_apply.htm', {
+        method: 'POST',
+        body: body,
+        credentials: 'same-origin'
+    }).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        location.reload();
+    }).catch(function() {
+        hideLoading();
+        alert('Could not resume Adblock.');
+    });
+}
+
+function validateWildcard() {
+    var ta = document.form.adblock_wildcard;
+    if (!ta)
+        return true;
+    var lines = ta.value.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+        var v = lines[i].replace(/^\s+|\s+$/g, '');
+        if (!v || v.charAt(0) === '#')
+            continue;
+        if (v.indexOf('://') !== -1 || v.indexOf('/') !== -1 ||
+            !/^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$/.test(v)) {
+            alert('Wildcard line ' + (i + 1) + ' is not a valid domain:\n' + v +
+                  '\n\nEnter only a domain such as doubleclick.net.');
+            ta.focus();
+            return false;
+        }
+    }
+    return true;
 }
 
 function updatePhaseText() {
@@ -641,13 +752,17 @@ function submitAction(script, silent) {
 }
 
 function saveSettings() {
-    if (!validateSchedule() || !validateSources())
+    if (!validateSchedule() || !validateSources() || !validateWildcard())
         return;
     submitAction('adblock_save.sh');
 }
 
 function updateNow() {
-    if (!validateSchedule() || !validateSources())
+    if (isPaused()) {
+        alert('Adblock is paused. Resume filtering before updating the list.');
+        return;
+    }
+    if (!validateSchedule() || !validateSources() || !validateWildcard())
         return;
     submitAction('adblock_update.sh');
 }
@@ -760,6 +875,30 @@ function done_validating(action) {
                                     </div>
 
                                     <div class="well" style="margin: 0 10px 10px; padding: 12px;">
+                                        <div class="clearfix">
+                                            <h4 class="pull-left" style="margin-top: 0;">Pause filtering</h4>
+                                            <span id="pauseBadge" class="label pull-right">Active</span>
+                                        </div>
+                                        <div id="pauseIdle">
+                                            <p class="muted">Temporarily stop blocking ads without disabling the resolver. Filtering resumes automatically when the pause expires.</p>
+                                            <select id="adblock_pause_minutes" name="adblock_pause_minutes" class="input">
+                                                <option value="15">15 minutes</option>
+                                                <option value="30">30 minutes</option>
+                                                <option value="60" selected>1 hour</option>
+                                                <option value="120">2 hours</option>
+                                                <option value="240">4 hours</option>
+                                                <option value="480">8 hours</option>
+                                                <option value="1440">24 hours</option>
+                                            </select>
+                                            <button type="button" class="btn btn-warning" onclick="pauseAdblock();"><i class="icon-pause"></i> Pause</button>
+                                        </div>
+                                        <div id="pauseActive" style="display:none;">
+                                            <p id="pauseUntilText" class="muted"></p>
+                                            <button type="button" class="btn btn-primary" onclick="resumeAdblock();"><i class="icon-play icon-white"></i> Resume now</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
                                         <h4 style="margin-top: 0;">General</h4>
                                         <table class="table table-condensed" style="margin-bottom: 0;">
                                             <tr>
@@ -866,7 +1005,45 @@ function done_validating(action) {
                                                               style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_get_x("", "adblock_allow"); %></textarea>
                                                 </td>
                                             </tr>
+                                            <tr>
+                                                <th>Wildcard blocked domains <span class="muted">(domain and all subdomains, one per line)</span></th>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    <textarea rows="5" wrap="off" spellcheck="false" maxlength="16384" class="span12"
+                                                              name="adblock_wildcard" placeholder="doubleclick.net"
+                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_get_x("", "adblock_wildcard"); %></textarea>
+                                                    <div class="help-block">Wildcard entries block the domain and every subdomain. They are applied when you press <strong>Update list</strong>.</div>
+                                                </td>
+                                            </tr>
                                         </table>
+                                    </div>
+
+                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
+                                        <h4 style="margin-top: 0;">DNS protection</h4>
+                                        <table class="table table-condensed" style="margin-bottom: 0;">
+                                            <tr>
+                                                <th width="45%">Block DNS-over-HTTPS providers</th>
+                                                <td>
+                                                    <select name="adblock_doh_block" class="input">
+                                                        <option value="1" <% nvram_match_x("", "adblock_doh_block", "1", "selected"); %>>Enabled</option>
+                                                        <option value="0" <% nvram_match_x("", "adblock_doh_block", "0", "selected"); %>>Disabled</option>
+                                                    </select>
+                                                    <div class="help-block">Blocks known DoH endpoints and the Firefox canary domain so clients use this resolver.</div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th>Reject DNS rebinding</th>
+                                                <td>
+                                                    <select name="adblock_rebind" class="input">
+                                                        <option value="0" <% nvram_match_x("", "adblock_rebind", "0", "selected"); %>>Disabled</option>
+                                                        <option value="1" <% nvram_match_x("", "adblock_rebind", "1", "selected"); %>>Enabled</option>
+                                                    </select>
+                                                    <div class="help-block">Rejects upstream answers that point to private IP addresses. May break local hostnames in AP mode; leave off if unsure.</div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <p class="muted" style="margin-bottom: 0;">These options are applied when you press <strong>Update list</strong>.</p>
                                     </div>
 
                                     <div class="row-fluid" style="margin: 0 10px 20px;">

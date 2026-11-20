@@ -15,6 +15,8 @@ mkdir -p "$DIR" "$DIR/stats" "$WORK"
 [ -f "$DIR/custom.allow" ] || cp "$BIN/defaults/custom.allow" "$DIR/custom.allow"
 [ -f "$DIR/wildcard.conf" ] || cp "$BIN/defaults/wildcard.conf" "$DIR/wildcard.conf"
 [ -f "$DIR/dnsmasq.conf" ] || cp "$BIN/defaults/dnsmasq.conf" "$DIR/dnsmasq.conf"
+[ -f "$DIR/options.conf" ] || : > "$DIR/options.conf"
+[ -f "$DIR/doh.conf" ] || : > "$DIR/doh.conf"
 
 # dnsmasq 2.93 in this build ignores plain server= lines; migrate old configs
 # to the resolv-file form and always generate the upstream file.
@@ -22,6 +24,8 @@ if [ -f "$DIR/dnsmasq.conf" ]; then
     sed -i '/^server=/d; /^no-resolv$/d' "$DIR/dnsmasq.conf"
     grep -q '^resolv-file=' "$DIR/dnsmasq.conf" || \
         echo "resolv-file=/etc/storage/adblock/resolv.conf" >> "$DIR/dnsmasq.conf"
+    grep -q '^conf-file=.*/options\.conf' "$DIR/dnsmasq.conf" || \
+        echo "conf-file=$DIR/options.conf" >> "$DIR/dnsmasq.conf"
 fi
 
 # AP mode: use the main router (default gateway) as the upstream resolver.
@@ -34,7 +38,7 @@ echo "nameserver $GW" > "$DIR/resolv.conf"
 
 # Action scripts used by the web UI.  Copy to a temporary name and rename so a
 # script that is currently executing is never truncated underneath itself.
-for a in adblock_apply.sh adblock_save.sh adblock_update.sh adblock_reset.sh adblock_test.sh adblock_log.sh adblock_stats.sh adblock_export.sh adblock_import.sh; do
+for a in adblock_apply.sh adblock_save.sh adblock_update.sh adblock_reset.sh adblock_test.sh adblock_log.sh adblock_stats.sh adblock_export.sh adblock_import.sh adblock_pause.sh adblock_resume.sh adblock_allow.sh adblock_health.sh wifi_sched_override.sh reboot_schedule.sh; do
     if [ -f "$BIN/actions/$a" ]; then
         cp "$BIN/actions/$a" "/tmp/$a.new" && mv "/tmp/$a.new" "/tmp/$a"
         chmod 755 "/tmp/$a"
@@ -51,6 +55,17 @@ done
 [ -z "$(nvram get adblock_sources)" ] && nvram set adblock_sources="$(cat "$DIR/sources.conf")"
 [ -z "$(nvram get adblock_custom)" ] && nvram set adblock_custom="$(cat "$DIR/custom.hosts")"
 [ -z "$(nvram get adblock_allow)" ] && nvram set adblock_allow="$(cat "$DIR/custom.allow")"
+if [ -z "$(nvram get adblock_wildcard)" ]; then
+    WILD=$(sed -n 's|^address=/\([^/]*\)/0\.0\.0\.0$|\1|p' "$DIR/wildcard.conf" 2>/dev/null | awk 'NF && !seen[$0]++')
+    nvram set adblock_wildcard="$WILD"
+fi
+[ -z "$(nvram get adblock_pause_until)" ] && nvram set adblock_pause_until=0
+[ -z "$(nvram get adblock_doh_block)" ] && nvram set adblock_doh_block=1
+[ -z "$(nvram get adblock_rebind)" ] && nvram set adblock_rebind=0
+[ -z "$(nvram get wifi_sched_override_until)" ] && nvram set wifi_sched_override_until=0
+[ -z "$(nvram get reboot_sched_enable)" ] && nvram set reboot_sched_enable=0
+[ -z "$(nvram get reboot_sched_time)" ] && nvram set reboot_sched_time="04:30"
+[ -z "$(nvram get reboot_sched_days)" ] && nvram set reboot_sched_days=127
 [ -z "$(nvram get adblock_phase)" ] && nvram set adblock_phase=idle
 [ -z "$(nvram get adblock_progress)" ] && nvram set adblock_progress=""
 [ -z "$(nvram get adblock_last_attempt)" ] && nvram set adblock_last_attempt="never"
@@ -58,6 +73,7 @@ done
 [ -z "$(nvram get adblock_config_dirty)" ] && nvram set adblock_config_dirty=0
 [ -z "$(nvram get adblock_config_hash)" ] && nvram set adblock_config_hash=""
 [ -z "$(nvram get adblock_applied_hash)" ] && nvram set adblock_applied_hash=""
+[ -z "$(nvram get adblock_applied_options_hash)" ] && nvram set adblock_applied_options_hash=""
 [ -z "$(nvram get adblock_source_status)" ] && nvram set adblock_source_status=""
 [ -z "$(nvram get adblock_stats_short)" ] && nvram set adblock_stats_short="Blocked today: 0 · this month: 0"
 [ -z "$(nvram get adblock_stats)" ] && nvram set adblock_stats="Blocked queries
@@ -67,6 +83,12 @@ done
 PRESET_CFG=$(cat "$BIN/defaults/presets.conf")
 [ "$(nvram get adblock_presets_config)" != "$PRESET_CFG" ] && nvram set adblock_presets_config="$PRESET_CFG"
 nvram commit
+
+# A pause survives reboots: keep the live lists empty until it expires.
+PAUSE_UNTIL=$(nvram get adblock_pause_until)
+case "$PAUSE_UNTIL" in ''|*[!0-9]*) PAUSE_UNTIL=0;; esac
+PAUSED=0
+[ "$PAUSE_UNTIL" -gt "$(date +%s)" ] 2>/dev/null && PAUSED=1
 
 # Flush the in-memory daily statistics to storage on shutdown.
 SHUTDOWN=/etc/storage/shutdown_script.sh
@@ -96,38 +118,44 @@ fi
 echo $$ > "$START_LOCK"
 trap 'rm -f "$START_LOCK"' EXIT
 
-rm -f "$WORK/hosts"
+if [ "$PAUSED" = "1" ]; then
+    # Paused: the resolver stays up, but both live lists are empty.
+    : > "$WORK/hosts.v4"
+    : > "$WORK/hosts.v6"
+else
+    rm -f "$WORK/hosts"
 
-if [ ! -s "$WORK/hosts.v4" ] && [ -s "$DIR/hosts.gz" ]; then
-    if gzip -dc "$DIR/hosts.gz" > "$WORK/hosts.v4.tmp" 2>/dev/null && [ -s "$WORK/hosts.v4.tmp" ]; then
-        mv "$WORK/hosts.v4.tmp" "$WORK/hosts.v4"
-    else
-        rm -f "$WORK/hosts.v4.tmp"
+    if [ ! -s "$WORK/hosts.v4" ] && [ -s "$DIR/hosts.gz" ]; then
+        if gzip -dc "$DIR/hosts.gz" > "$WORK/hosts.v4.tmp" 2>/dev/null && [ -s "$WORK/hosts.v4.tmp" ]; then
+            mv "$WORK/hosts.v4.tmp" "$WORK/hosts.v4"
+        else
+            rm -f "$WORK/hosts.v4.tmp"
+        fi
     fi
-fi
 
-if [ ! -s "$WORK/hosts.v4" ]; then
-    if [ "$NO_UPDATE" = "1" ]; then
-        nvram set adblock_config_dirty=1
-        nvram set adblock_status="no blocklist yet; update list to apply"
-        nvram set adblock_phase=idle
-        nvram set adblock_progress=""
-        nvram commit
-    else
-        "$BIN/update.sh" >/dev/null 2>&1
+    if [ ! -s "$WORK/hosts.v4" ]; then
+        if [ "$NO_UPDATE" = "1" ]; then
+            nvram set adblock_config_dirty=1
+            nvram set adblock_status="no blocklist yet; update list to apply"
+            nvram set adblock_phase=idle
+            nvram set adblock_progress=""
+            nvram commit
+        else
+            "$BIN/update.sh" >/dev/null 2>&1
+        fi
     fi
-fi
 
-if [ -s "$WORK/hosts.v4" ] && [ ! -s "$WORK/hosts.v6" ]; then
-    if sed 's/^0\.0\.0\.0 /::1 /' "$WORK/hosts.v4" > "$WORK/hosts.v6.tmp" 2>/dev/null && [ -s "$WORK/hosts.v6.tmp" ]; then
-        mv "$WORK/hosts.v6.tmp" "$WORK/hosts.v6"
-    else
-        rm -f "$WORK/hosts.v6.tmp"
+    if [ -s "$WORK/hosts.v4" ] && [ ! -s "$WORK/hosts.v6" ]; then
+        if sed 's/^0\.0\.0\.0 /::1 /' "$WORK/hosts.v4" > "$WORK/hosts.v6.tmp" 2>/dev/null && [ -s "$WORK/hosts.v6.tmp" ]; then
+            mv "$WORK/hosts.v6.tmp" "$WORK/hosts.v6"
+        else
+            rm -f "$WORK/hosts.v6.tmp"
+        fi
     fi
-fi
 
-[ -s "$WORK/hosts.v4" ] || : > "$WORK/hosts.v4"
-[ -s "$WORK/hosts.v6" ] || : > "$WORK/hosts.v6"
+    [ -s "$WORK/hosts.v4" ] || : > "$WORK/hosts.v4"
+    [ -s "$WORK/hosts.v6" ] || : > "$WORK/hosts.v6"
+fi
 chmod 644 "$WORK/hosts.v4" "$WORK/hosts.v6"
 
 write_cron() {
@@ -173,9 +201,15 @@ finish() {
     write_cron
     /sbin/mtd_storage.sh save >/dev/null 2>&1
     if [ "${ADBLOCK_KEEP_STATUS:-0}" != "1" ]; then
-        nvram set adblock_status="$LINES domains (ready)"
-        nvram set adblock_phase=idle
-        nvram set adblock_progress=""
+        if [ "$PAUSED" = "1" ]; then
+            nvram set adblock_status="paused (DNS filtering off)"
+            nvram set adblock_phase=paused
+            nvram set adblock_progress=""
+        else
+            nvram set adblock_status="$LINES domains (ready)"
+            nvram set adblock_phase=idle
+            nvram set adblock_progress=""
+        fi
         [ -z "$(nvram get adblock_last_success)" ] && nvram set adblock_last_success="never"
         [ -z "$(nvram get adblock_last_attempt)" ] && nvram set adblock_last_attempt="never"
     fi
@@ -189,7 +223,8 @@ if [ "$SW_MODE" = "3" ]; then
     # Do not bounce a healthy resolver just because settings were saved; the
     # active blocklist is only replaced by update.sh.
     NEED_RESTART=1
-    if [ -s "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null && [ -s "$WORK/hosts.v4" ]; then
+    if [ -s "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null && \
+            { [ -s "$WORK/hosts.v4" ] || [ "$PAUSED" = "1" ]; }; then
         NEED_RESTART=0
     fi
     if [ "$NEED_RESTART" = "1" ] && ! "$BIN/restart.sh"; then
@@ -224,6 +259,7 @@ else
         echo "addn-hosts=$WORK/hosts.v4"
         echo "addn-hosts=$WORK/hosts.v6"
         echo "conf-file=$DIR/wildcard.conf"
+        echo "conf-file=$DIR/options.conf"
         echo "log-queries"
         echo "log-facility=/tmp/adblock-queries.log"
     } > "$DIR/dnsmasq.d/adblock.conf"

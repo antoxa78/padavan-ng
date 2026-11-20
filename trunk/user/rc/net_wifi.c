@@ -1256,6 +1256,15 @@ timecheck_wifi(int is_aband, const char *nv_date, const char *nv_time1, const ch
 	int iTime1B, iTime1E, iTime2B, iTime2E;
 	int today_start, today_end, yest_start, yest_end;
 
+	time(&now);
+
+	/* A manual override keeps both bands and guests on until it expires. */
+	{
+		long override_until = atol(nvram_safe_get("wifi_sched_override_until"));
+		if (override_until > 0 && (long)now < override_until)
+			return 1;
+	}
+
 	aDate  = nvram_wlan_get(is_aband, nv_date);
 	aTime1 = nvram_wlan_get(is_aband, nv_time1);
 	aTime2 = nvram_wlan_get(is_aband, nv_time2);
