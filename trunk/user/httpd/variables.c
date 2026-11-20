@@ -199,18 +199,11 @@
 			{"adblock_allow", "File", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_presets", "", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_extra_sources", "File", NULL, EVM_BLOCK_UNSAFE},
-			{"adblock_source_status", "File", NULL, FALSE},
 			{"adblock_test_domain", "", NULL, EVM_BLOCK_UNSAFE},
-			{"adblock_test_result", "File", NULL, FALSE},
-			{"adblock_update_log", "File", NULL, FALSE},
-			{"adblock_stats", "File", NULL, FALSE},
-			{"adblock_export", "File", NULL, FALSE},
 			{"adblock_import", "File", NULL, EVM_BLOCK_UNSAFE},
-			{"adblock_last_success", "", NULL, FALSE},
 			{"adblock_interval", "", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_update_hour", "", NULL, EVM_BLOCK_UNSAFE},
 			{"adblock_update_min", "", NULL, EVM_BLOCK_UNSAFE},
-			{"adblock_status", "", NULL, FALSE},
 			{0,0,0,0}
 		};
 

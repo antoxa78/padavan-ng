@@ -10,6 +10,10 @@
 <link rel="icon" href="images/favicon.png">
 <link rel="stylesheet" type="text/css" href="/bootstrap/css/bootstrap.min.css">
 <link rel="stylesheet" type="text/css" href="/bootstrap/css/main.css">
+<style>
+    .well { box-sizing: border-box; }
+    .adblock-time input { box-sizing: border-box; }
+</style>
 
 <script type="text/javascript" src="/jquery.js"></script>
 <script type="text/javascript" src="/state.js"></script>
