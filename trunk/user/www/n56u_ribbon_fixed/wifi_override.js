@@ -30,7 +30,7 @@ function setWifiOverride(minutes) {
     }
     if (isNaN(minutes) || minutes < 0)
         minutes = 60;
-    if (!login_safe())
+    if (typeof login_safe === 'function' && !login_safe())
         return;
     if (minutes === 0 && !confirm('Cancel the temporary Wi-Fi override?'))
         return;

@@ -34,6 +34,8 @@ $j(document).ready(function() {
 </script>
 <script>
 
+<% login_state_hook(); %>
+
 function initial(){
 	wifiOverrideUntil = parseInt('<% nvram_get_x("", "wifi_sched_override_until"); %>', 10) || 0;
 	wifiOverridePage = 'Advanced_Wireless2g_Content.asp';
