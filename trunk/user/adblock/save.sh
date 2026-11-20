@@ -25,6 +25,8 @@ if [ -n "$EXTRA" ]; then
     printf '%s\n' "$EXTRA" | while IFS= read -r url; do
         case "$url" in
             ''|'#'*) continue;;
+            *' '*|*'	'*|*'<'*|*'>'*|*'"'*|*"'"*)
+                logger -t adblock "ignored unsafe source URL: $url";;
             http://*|https://*) echo "$url" >> "$TMP";;
             *) logger -t adblock "ignored invalid source URL: $url";;
         esac
@@ -41,14 +43,18 @@ fi
 mv "$TMP" "$DIR/sources.conf"
 
 CUSTOM=$(nvram get adblock_custom)
+# Drop HTML metacharacters so the textarea cannot be broken by stored rules.
+CUSTOM=$(printf '%s\n' "$CUSTOM" | tr -d '<>')
+nvram set adblock_custom="$CUSTOM"
 printf '%s\n' "$CUSTOM" > "$DIR/custom.hosts.new"
 mv "$DIR/custom.hosts.new" "$DIR/custom.hosts"
 
 ALLOW=$(nvram get adblock_allow)
 if [ -z "$ALLOW" ]; then
     ALLOW='# no allowlist'
-    nvram set adblock_allow="$ALLOW"
 fi
+ALLOW=$(printf '%s\n' "$ALLOW" | tr -d '<>')
+nvram set adblock_allow="$ALLOW"
 printf '%s\n' "$ALLOW" > "$DIR/custom.allow.new"
 mv "$DIR/custom.allow.new" "$DIR/custom.allow"
 

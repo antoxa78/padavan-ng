@@ -42,6 +42,18 @@ http_date_to_local() {
     date -d "@$_lm_epoch" '+%Y-%m-%d %H:%M' 2>/dev/null
 }
 
+# HTTPS downloads fail with certificate errors until NTP sets the clock.
+wait_for_clock() {
+    _clock_wait=0
+    while [ "$(date +%Y)" -lt 2024 ]; do
+        [ "$_clock_wait" -ge 120 ] && return 1
+        nvram set adblock_progress="waiting for system clock"
+        sleep 2
+        _clock_wait=$((_clock_wait + 2))
+    done
+    return 0
+}
+
 fail_update() {
     REASON="$1"
     logger -t adblock "$REASON"
@@ -62,6 +74,11 @@ fail_update() {
 [ -f "$SOURCES" ] || : > "$SOURCES"
 [ -s "$DIR/custom.allow" ] || echo '# no allowlist' > "$DIR/custom.allow"
 
+if ! wait_for_clock; then
+    fail_update "update failed: system clock is not set"
+fi
+nvram set adblock_progress="starting"
+
 # Snapshot the configuration for this run.  Settings saved while the update is
 # running must not produce a half-old/half-new blocklist.
 cp "$SOURCES" "$WORK/config.sources" 2>/dev/null || : > "$WORK/config.sources"
@@ -78,6 +95,11 @@ while IFS= read -r url; do
     TOTAL=$((TOTAL + 1))
 done < "$WORK/config.sources"
 
+AVAIL=$(df -k /tmp 2>/dev/null | awk 'NR==2 {print $4}')
+if [ -n "$AVAIL" ] && [ "$AVAIL" -lt 16384 ]; then
+    fail_update "update failed: not enough free space in /tmp"
+fi
+
 N=0
 OK=0
 while IFS= read -r url; do
@@ -86,7 +108,8 @@ while IFS= read -r url; do
     SRC_TS=$(date '+%m-%d %H:%M')
     nvram set adblock_progress="$N/$TOTAL sources"
     HDR="$WORK/hdr.$N"
-    if wget -S -o "$HDR" -T 30 -O "$WORK/src.$N" "$url"; then
+    # Cap each download at 50 MiB so one bad source cannot fill /tmp.
+    if ( ulimit -f 102400 2>/dev/null; wget -S -o "$HDR" -T 30 -O "$WORK/src.$N" "$url" ); then
         LM=$(grep -i '^[[:space:]]*Last-Modified:' "$HDR" 2>/dev/null | tail -1 |
             sed 's/^[^:]*:[[:space:]]*//; s/\r$//')
         SRC_TIME=$(http_date_to_local "$LM" 2>/dev/null)
@@ -95,7 +118,12 @@ while IFS= read -r url; do
         # A website URL downloads HTML with plenty of lines but no hosts data.
         SRC_LINES=$(tr -d '\r' < "$WORK/src.$N" 2>/dev/null |
             grep -cE '^(0\.0\.0\.0|127\.0\.0\.1|::1|::|255\.255\.255\.255)[[:space:]]+[a-zA-Z0-9_.-]+|^[a-zA-Z0-9_.-]+\.[a-zA-Z0-9_.-]+$')
-        if [ "$SIZE" -gt 0 ] && [ "$SRC_LINES" -gt 0 ]; then
+        if [ "$SIZE" -gt 52428800 ]; then
+            logger -t adblock "source too large: $url"
+            SRC_STATUS="$SRC_STATUS$url|0|failed|$SRC_TS|
+"
+            rm -f "$WORK/src.$N"
+        elif [ "$SIZE" -gt 0 ] && [ "$SRC_LINES" -gt 0 ]; then
             OK=$((OK + 1))
             SRC_STATUS="$SRC_STATUS$url|$SRC_LINES|ok|$SRC_TS|$SRC_TIME
 "

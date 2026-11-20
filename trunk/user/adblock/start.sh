@@ -68,6 +68,12 @@ PRESET_CFG=$(cat "$BIN/defaults/presets.conf")
 [ "$(nvram get adblock_presets_config)" != "$PRESET_CFG" ] && nvram set adblock_presets_config="$PRESET_CFG"
 nvram commit
 
+# Flush the in-memory daily statistics to storage on shutdown.
+SHUTDOWN=/etc/storage/shutdown_script.sh
+if [ -f "$SHUTDOWN" ] && ! grep -q 'adblock/stats_collect.sh --sync' "$SHUTDOWN" 2>/dev/null; then
+    printf '%s\n' '[ -x /usr/sbin/adblock/stats_collect.sh ] && /usr/sbin/adblock/stats_collect.sh --sync >/dev/null 2>&1' >> "$SHUTDOWN"
+fi
+
 if [ "$(nvram get adblock_enable)" = "0" ]; then
     nvram set adblock_status="disabled"
     nvram set adblock_phase=disabled
