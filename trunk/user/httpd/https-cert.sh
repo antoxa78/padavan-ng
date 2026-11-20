@@ -113,8 +113,11 @@ create_cert() {
   rm -f $SSL_EXT_FILE
   # DNS name plus the router's LAN IPv4 address, so both
   # https://my.router and https://<lan-ip> validate without a warning.
-  local SAN="DNS:${CN}"
-  [ "$CN" != "my.router" ] && SAN="$SAN,DNS:my.router"
+  # An IP address must go into an IP: SAN, not a DNS: SAN.
+  local SAN="DNS:my.router"
+  if ! is_ipv4 "$CN" && [ "$CN" != "my.router" ]; then
+    SAN="DNS:${CN},$SAN"
+  fi
   IP_SANS=""
   add_ip_san "$CN"
   add_ip_san "$(get_lan_ipv4)"

@@ -191,9 +191,9 @@ function create_server_cert() {
 		url: "/apply.cgi",
 		data: {
 			action_mode: " CreateCertHTTPS ",
-			common_name: $('https_gen_cn').value,
-			rsa_bits: $('https_gen_rb').value,
-			days_valid: $('https_gen_dv').value
+			common_name: document.getElementById('https_gen_cn').value,
+			rsa_bits: document.getElementById('https_gen_rb').value,
+			days_valid: document.getElementById('https_gen_dv').value
 		},
 		dataType: "json",
 		error: function(xhr) {
