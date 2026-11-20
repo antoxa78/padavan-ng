@@ -74,6 +74,10 @@ fi
 [ -z "$(nvram get adblock_config_hash)" ] && nvram set adblock_config_hash=""
 [ -z "$(nvram get adblock_applied_hash)" ] && nvram set adblock_applied_hash=""
 [ -z "$(nvram get adblock_applied_options_hash)" ] && nvram set adblock_applied_options_hash=""
+if [ -z "$(nvram get adblock_applied_options_hash)" ] && [ -n "$(nvram get adblock_applied_hash)" ]; then
+    # Existing blocklist predates wildcard/DoH/rebind support: ask for one update.
+    nvram set adblock_config_dirty=1
+fi
 [ -z "$(nvram get adblock_source_status)" ] && nvram set adblock_source_status=""
 [ -z "$(nvram get adblock_stats_short)" ] && nvram set adblock_stats_short="Blocked today: 0 · this month: 0"
 [ -z "$(nvram get adblock_stats)" ] && nvram set adblock_stats="Blocked queries

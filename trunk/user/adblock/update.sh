@@ -30,6 +30,10 @@ case "$PAUSE_UNTIL" in ''|*[!0-9]*) PAUSE_UNTIL=0;; esac
 if [ "$PAUSE_UNTIL" -gt "$(date +%s)" ] 2>/dev/null; then
     echo "=== update skipped: adblock is paused ==="
     logger -t adblock "update skipped: paused"
+    nvram set adblock_phase=paused
+    nvram set adblock_progress=""
+    nvram set adblock_status="paused (DNS filtering off)"
+    nvram commit
     exit 0
 fi
 
@@ -280,6 +284,20 @@ gzip -t "$WORK/hosts.gz.new" ||
 GZ_SIZE=$(wc -c < "$WORK/hosts.gz.new")
 if [ "$GZ_SIZE" -gt 4000000 ]; then
     fail_update "update rejected: gzip is too large"
+fi
+
+# If the user paused while this update was running, discard the new lists and
+# leave the live files empty.  The persisted gzip stays untouched.
+PAUSE_NOW=$(nvram get adblock_pause_until)
+case "$PAUSE_NOW" in ''|*[!0-9]*) PAUSE_NOW=0;; esac
+if [ "$PAUSE_NOW" -gt "$(date +%s)" ] 2>/dev/null; then
+    echo "=== update paused during apply; keeping old list ==="
+    rm -f "$WORK/hosts.v4.new" "$WORK/hosts.v6.new" "$WORK/hosts.gz.new"
+    nvram set adblock_phase=paused
+    nvram set adblock_progress=""
+    nvram set adblock_status="paused (DNS filtering off)"
+    nvram commit
+    exit 0
 fi
 
 OLD_SIZE=0
