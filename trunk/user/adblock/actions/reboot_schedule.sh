@@ -14,6 +14,8 @@ H=$(echo "$H" | sed 's/^0*//'); [ -z "$H" ] && H=0
 M=$(echo "$M" | sed 's/^0*//'); [ -z "$M" ] && M=0
 [ "$H" -le 23 ] || H=4
 [ "$M" -le 59 ] || M=30
+case "$H" in [0-9]) H="0$H";; esac
+case "$M" in [0-9]) M="0$M";; esac
 
 DAYS=$(nvram get reboot_sched_days)
 case "$DAYS" in ''|*[!0-9]*) DAYS=127;; esac
