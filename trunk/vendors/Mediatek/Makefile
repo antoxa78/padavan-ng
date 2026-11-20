@@ -144,7 +144,7 @@ romfs.post::
 	[ -d $(IMAGEDIR) ] || mkdir -p $(IMAGEDIR)
 	rm -f $(RAMDISK)
 	rm -f $(KERNELZ).lzma
-	$(TOOLS_DIR)/mksquashfs_xz/mksquashfs $(ROMFSDIR) $(RAMDISK) -all-root -no-exports -noappend -nopad -noI -no-xattrs
+	$(TOOLS_DIR)/mksquashfs_xz/mksquashfs $(ROMFSDIR) $(RAMDISK) -all-root -no-exports -noappend -nopad -noI -no-xattrs -comp xz -b 1M
 
 modules.archive:
 	###########CREATE MODULES ARCHIVE##########
