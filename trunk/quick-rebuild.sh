@@ -15,7 +15,7 @@ else
 fi
 
 # CI-style image budget: fail above the flash limit, warn above 8 MiB.
-IMG=$(ls -t images/RM-AC2100_3.5.0-105-*.trx 2>/dev/null | head -1)
+IMG=$(ls -t images/RM-AC2100_*.trx 2>/dev/null | head -1)
 if [ -n "$IMG" ]; then
     SIZE=$(stat -c %s "$IMG")
     MAX=20971520

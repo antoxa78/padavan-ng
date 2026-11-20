@@ -200,13 +200,23 @@ function updateRebootSchedule() {
 		return;
 	}
 	var names = [];
-	for (var i = 0; i < 7; i++) {
-		if (mask & (1 << i))
-			names.push(rebootDayNames[i]);
+	var dayOrder = [1, 2, 3, 4, 5, 6, 0];
+	for (var k = 0; k < dayOrder.length; k++) {
+		var idx = dayOrder[k];
+		if (mask & (1 << idx))
+			names.push(rebootDayNames[idx]);
 	}
+	var when;
+	if (mask === 127)
+		when = 'every day';
+	else if (mask === 62)
+		when = 'on weekdays';
+	else if (mask === 65)
+		when = 'on weekends';
+	else
+		when = 'on ' + names.join(', ');
 	var next = nextRebootText(time, mask);
-	el.innerHTML = 'Reboots at <strong>' + rebootEscape(time) + '</strong> on ' +
-	               names.join(', ') + '.' +
+	el.innerHTML = 'Reboots at <strong>' + rebootEscape(time) + '</strong> ' + when + '.' +
 	               (next ? ' Next: <strong>' + rebootEscape(next) + '</strong>.' : '');
 }
 
@@ -288,8 +298,55 @@ function ntpSyncNow(){
     .table input, .table select {margin-bottom: 0px;}
     .reboot-panel .input-append { margin-bottom: 0; }
     .reboot-panel .input-append input { margin-bottom: 0; }
-    .reboot-panel .checkbox.inline { margin-right: 12px; }
     .reboot-panel .row-fluid [class*="span"] { margin-bottom: 8px; }
+    .reboot-panel .reboot-days { display: flex; flex-wrap: wrap; margin: 0 -3px -6px; }
+    .reboot-panel .reboot-day {
+        position: relative;
+        margin: 0 3px 6px;
+        padding: 0;
+        line-height: 18px;
+        cursor: pointer;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    .reboot-panel .reboot-day input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: 0;
+        opacity: 0;
+        overflow: hidden;
+    }
+    .reboot-panel .reboot-day span {
+        display: block;
+        min-width: 34px;
+        padding: 5px 8px;
+        border: 1px solid #c5c5c5;
+        border-radius: 4px;
+        background-color: #f5f5f5;
+        background-image: linear-gradient(to bottom, #ffffff, #e6e6e6);
+        color: #555;
+        font-size: 12px;
+        font-weight: 600;
+        line-height: 18px;
+        text-align: center;
+        text-shadow: 0 1px 0 rgba(255,255,255,.75);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
+    }
+    .reboot-panel .reboot-day:hover span { border-color: #999; color: #333; }
+    .reboot-panel .reboot-day input:checked + span {
+        background-color: #006dcc;
+        background-image: linear-gradient(to bottom, #0088cc, #0044cc);
+        border-color: #0044cc;
+        color: #fff;
+        text-shadow: 0 -1px 0 rgba(0,0,0,.25);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.15);
+    }
+    .reboot-panel .reboot-day input:focus + span {
+        outline: 2px solid rgba(0,136,204,.35);
+        outline-offset: 1px;
+    }
 </style>
 </head>
 
@@ -594,14 +651,14 @@ function ntpSyncNow(){
                                             </div>
                                             <div class="span6">
                                                 <label class="caption-bold">Days</label>
-                                                <div>
-                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_0" onchange="rebootDayChanged();"> Sun</label>
-                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_1" onchange="rebootDayChanged();"> Mon</label>
-                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_2" onchange="rebootDayChanged();"> Tue</label>
-                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_3" onchange="rebootDayChanged();"> Wed</label>
-                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_4" onchange="rebootDayChanged();"> Thu</label>
-                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_5" onchange="rebootDayChanged();"> Fri</label>
-                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_6" onchange="rebootDayChanged();"> Sat</label>
+                                                <div class="reboot-days">
+                                                    <label class="reboot-day" title="Monday"><input type="checkbox" id="reboot_day_1" onchange="rebootDayChanged();"><span>Mon</span></label>
+                                                    <label class="reboot-day" title="Tuesday"><input type="checkbox" id="reboot_day_2" onchange="rebootDayChanged();"><span>Tue</span></label>
+                                                    <label class="reboot-day" title="Wednesday"><input type="checkbox" id="reboot_day_3" onchange="rebootDayChanged();"><span>Wed</span></label>
+                                                    <label class="reboot-day" title="Thursday"><input type="checkbox" id="reboot_day_4" onchange="rebootDayChanged();"><span>Thu</span></label>
+                                                    <label class="reboot-day" title="Friday"><input type="checkbox" id="reboot_day_5" onchange="rebootDayChanged();"><span>Fri</span></label>
+                                                    <label class="reboot-day" title="Saturday"><input type="checkbox" id="reboot_day_6" onchange="rebootDayChanged();"><span>Sat</span></label>
+                                                    <label class="reboot-day" title="Sunday"><input type="checkbox" id="reboot_day_0" onchange="rebootDayChanged();"><span>Sun</span></label>
                                                 </div>
                                             </div>
                                         </div>
