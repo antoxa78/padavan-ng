@@ -96,7 +96,7 @@ if [ "$DOH_BLOCK" = "1" ]; then
     {
         echo "# Block DNS-over-HTTPS endpoints so clients use this resolver."
         echo "address=/use-application-dns.net/"
-        for d in use-application-dns.net mozilla.cloudflare-dns.com firefox.dns.nextdns.io \
+        for d in mozilla.cloudflare-dns.com firefox.dns.nextdns.io \
                  doh.opendns.com dns.google chrome.cloudflare-dns.com doh.dns.apple.com \
                  dns.nextdns.io doh.pub dns.alidns.com doh.360.cn cloudflare-dns.com \
                  dns.quad9.net doh.cleanbrowsing.org doh.adguard.com dns.adguard.com; do
