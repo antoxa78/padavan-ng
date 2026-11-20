@@ -179,13 +179,13 @@ function updateRebootSchedule() {
 
 	if (badge) {
 		if (enable !== '1') {
-			badge.className = 'label';
+			badge.className = 'label pull-right';
 			badge.innerHTML = 'Disabled';
 		} else if (!mask) {
-			badge.className = 'label label-important';
+			badge.className = 'label pull-right label-important';
 			badge.innerHTML = 'No days';
 		} else {
-			badge.className = 'label label-success';
+			badge.className = 'label pull-right label-success';
 			badge.innerHTML = 'Scheduled';
 		}
 	}

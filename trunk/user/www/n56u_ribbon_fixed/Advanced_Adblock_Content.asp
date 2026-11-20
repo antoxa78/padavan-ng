@@ -608,7 +608,7 @@ function updatePauseState() {
     if (idle) idle.style.display = active ? 'none' : '';
     if (paused) paused.style.display = active ? '' : 'none';
     if (badge) {
-        badge.className = 'label ' + (active ? 'label-warning' : 'label-success');
+        badge.className = 'label pull-right ' + (active ? 'label-warning' : 'label-success');
         badge.innerHTML = active ? 'Paused' : 'Filtering on';
     }
     var idleText = document.getElementById('pauseIdleText');
