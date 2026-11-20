@@ -219,14 +219,14 @@ ALLOW_RE=$(grep -v '^[[:space:]]*#' "$WORK/config.allow" 2>/dev/null |
     sed 's/^/0.0.0.0 /' > "$WORK/hosts.v4.raw"
 
 RAW_LINES=$(wc -l < "$WORK/hosts.v4.raw")
-if [ "$RAW_LINES" -le 150000 ]; then
+if [ "$RAW_LINES" -le 250000 ]; then
     if sort -u "$WORK/hosts.v4.raw" > "$WORK/hosts.v4.new" 2>/dev/null; then
         rm -f "$WORK/hosts.v4.raw"
     else
         mv "$WORK/hosts.v4.raw" "$WORK/hosts.v4.new"
     fi
 else
-    # Avoid sort's in-memory buffer on low-memory routers.  Duplicate hosts
+    # Avoid sort's in-memory buffer on very large lists.  Duplicate hosts
     # entries are harmless; dnsmasq deduplicates them while loading.
     mv "$WORK/hosts.v4.raw" "$WORK/hosts.v4.new"
 fi
