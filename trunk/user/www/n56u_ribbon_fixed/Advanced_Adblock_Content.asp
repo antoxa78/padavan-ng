@@ -268,7 +268,7 @@ function parsePresetConfig() {
         var p = line.split('|');
         if (p.length < 3)
             continue;
-        out.push({ idx: parseInt(p[0], 10), label: p[1], url: p[2] });
+        out.push({ idx: parseInt(p[0], 10), label: p[1], url: p[2], recommended: p[3] === '1' });
     }
     return out;
 }
@@ -286,6 +286,7 @@ function renderPresets() {
         html += '<td><input type="checkbox" name="preset" value="' + p.idx + '"' + checked +
                 ' data-label="' + escapeAttr(p.label) + '" onchange="updateMask();"></td>';
         html += '<td><strong>' + escapeHtml(p.label) + '</strong>' +
+                (p.recommended ? ' <span class="label label-success" style="margin-left:6px;">Recommended</span>' : '') +
                 '<div class="src-url muted">' + escapeHtml(p.url) + '</div></td>';
         html += '<td><span class="src-status muted" data-url="' + escapeAttr(p.url) +
                 '">awaiting update</span></td>';

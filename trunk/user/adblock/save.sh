@@ -13,7 +13,7 @@ case "$MASK" in ''|*[!0-9]*) MASK=52;; esac
 
 TMP=$DIR/sources.conf.new
 : > "$TMP"
-while IFS='|' read -r idx label url; do
+while IFS='|' read -r idx label url rec; do
     case "$idx" in ''|'#'*) continue;; esac
     if [ $((MASK & (1 << idx))) -ne 0 ]; then
         echo "$url" >> "$TMP"
