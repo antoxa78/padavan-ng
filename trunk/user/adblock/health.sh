@@ -74,12 +74,15 @@ else
     PAUSE_STATE="off"
 fi
 
-if [ "$RESOLVER" = "running" ] && [ "$DNS_STATE" = "ok" ]; then
-    STATE="ok"
-elif [ "$RESOLVER" = "running" ]; then
-    STATE="warn"
-else
+REASON=""
+if [ "$RESOLVER" != "running" ]; then
     STATE="error"
+    REASON="The DNS resolver is not running. Check the Adblock service and resolver status."
+elif [ "$DNS_STATE" != "ok" ]; then
+    STATE="warn"
+    REASON="The resolver is running, but the local DNS test failed. Check the upstream DNS and internet connection."
+else
+    STATE="ok"
 fi
 
 HEALTH="Resolver|$RESOLVER
@@ -96,6 +99,7 @@ Blocked queries|$(nvram get adblock_stats_short)
 Last update|$(nvram get adblock_last_success)"
 nvram set adblock_health="$HEALTH"
 nvram set adblock_health_state="$STATE"
+nvram set adblock_health_reason="$REASON"
 
 # Recent blocked domains, excluding allowlisted names plus wildcard and DoH
 # blocks (the Allow button can only remove hosts-list entries).

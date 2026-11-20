@@ -180,8 +180,8 @@ function renderHealth() {
     }
     rows.innerHTML = html || '<tr><td class="muted">No health data yet. Press Refresh.</td></tr>';
 
+    var state = '<% nvram_get_x("", "adblock_health_state"); %>';
     if (badge) {
-        var state = '<% nvram_get_x("", "adblock_health_state"); %>';
         if (state === 'ok') {
             badge.className = 'label label-success';
             badge.innerHTML = 'Healthy';
@@ -194,6 +194,25 @@ function renderHealth() {
         } else {
             badge.className = 'label';
             badge.innerHTML = 'Unknown';
+        }
+    }
+
+    var reasonEl = document.getElementById('healthReason');
+    var reasonData = document.getElementById('healthReasonData');
+    if (reasonEl) {
+        var reason = reasonData ? reasonData.value.replace(/^\s+|\s+$/g, '') : '';
+        if (!reason) {
+            if (state === 'warn')
+                reason = 'The resolver is running, but the local DNS test failed.';
+            else if (state === 'error')
+                reason = 'The DNS resolver is not running.';
+        }
+        if (reason && state !== 'ok') {
+            reasonEl.className = 'alert ' + (state === 'error' ? 'alert-danger' : 'alert-warning');
+            reasonEl.innerHTML = escapeHtml(reason);
+            reasonEl.style.display = '';
+        } else {
+            reasonEl.style.display = 'none';
         }
     }
 }
@@ -341,6 +360,7 @@ function done_validating(action) {
     <input type="hidden" name="action_script" value="">
 
     <textarea id="healthData" style="display:none;"><% nvram_get_x("", "adblock_health"); %></textarea>
+    <textarea id="healthReasonData" style="display:none;"><% nvram_get_x("", "adblock_health_reason"); %></textarea>
     <textarea id="recentData" style="display:none;"><% nvram_get_x("", "adblock_recent"); %></textarea>
 
     <div class="container-fluid">
@@ -395,6 +415,7 @@ function done_validating(action) {
                                                 <span id="healthBadge" class="label">Unknown</span>
                                             </div>
                                         </div>
+                                        <div id="healthReason" class="alert alert-warning" style="display:none; margin:8px 0 0; padding:6px 10px;"></div>
                                         <table class="table table-condensed" style="margin-bottom: 0;">
                                             <tbody id="healthRows"></tbody>
                                         </table>

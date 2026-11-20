@@ -868,6 +868,7 @@ function done_validating(action) {
                                                 <div class="alert alert-warning" id="dirtyNotice" style="display:none; margin:8px 0 0; padding:6px 10px;">
                                                     Settings saved. Press <strong>Update list</strong> to rebuild the blocklist.
                                                 </div>
+                                                <div class="help-block muted" style="margin:8px 0 0;">Shows the current filtering state and the result of the last blocklist build. "Saved" means settings are stored but the active list has not been rebuilt yet.</div>
                                             </div>
                                         </div>
                                         <div class="span6">
@@ -878,6 +879,7 @@ function done_validating(action) {
                                                 </div>
                                                 <div class="muted" style="margin-top: 8px;" id="scheduleHintTop"></div>
                                                 <div class="muted" style="margin-top: 6px;">Next run: <span id="nextRun"></span></div>
+                                                <div class="help-block muted" style="margin:8px 0 0;">Automatic updates use the router's local time. Save changes first, then press <strong>Update list</strong> to rebuild the blocklist.</div>
                                             </div>
                                         </div>
                                     </div>
