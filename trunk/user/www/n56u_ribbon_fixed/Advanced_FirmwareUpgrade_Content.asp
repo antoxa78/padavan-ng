@@ -167,6 +167,10 @@ $j.fn.fileName = function(){
                             <div class="round_bottom">
                                 <div class="row-fluid">
                                     <div id="tabMenu" class="submenuBlock"></div>
+                                    <div class="alert alert-danger" style="margin: 10px;">
+                                        <strong>Compatibility:</strong> This firmware is only for the Xiaomi Mi Router AC2100 (RM-AC2100).
+                                        Do not flash it on any other router model.
+                                    </div>
                                     <div class="alert alert-info" style="margin: 10px;">
                                         <#FW_desc1#>
                                         <ol>

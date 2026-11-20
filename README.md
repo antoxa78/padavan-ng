@@ -1,5 +1,11 @@
 # README #
 
+> [!WARNING]
+> **Prebuilt images from this repository's Releases / GitHub Actions target the Xiaomi Mi Router AC2100 (RM-AC2100) only.**
+> Do not flash them on any other router model.
+>
+> **Внимание:** Готовые образы из Releases / GitHub Actions предназначены только для Xiaomi Mi Router AC2100 (RM-AC2100). Не прошивайте другие модели.
+
 Форк репозитория [**alxdm**](https://gitlab.com/dm38/padavan-ng)
 
 #### Добавлены/обновлены:
