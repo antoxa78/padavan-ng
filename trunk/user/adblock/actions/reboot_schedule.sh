@@ -38,7 +38,16 @@ CRON=/etc/storage/cron/crontabs/admin
 mkdir -p /etc/storage/cron/crontabs
 TMP=/tmp/reboot-cron
 if [ -f "$CRON" ]; then
-    grep -v -E 'reboot-scheduler|/sbin/reboot' "$CRON" > "$TMP"
+    # Remove only our own two-line entry; leave user-created reboot jobs alone.
+    awk '
+        /^# reboot-scheduler$/ { skip = 1; next }
+        skip {
+            skip = 0
+            if ($0 ~ /^[0-9*\/, -]+[ \t]+\/sbin\/reboot([ \t]|$)/)
+                next
+        }
+        { print }
+    ' "$CRON" > "$TMP"
 else
     : > "$TMP"
 fi

@@ -24,14 +24,30 @@ if [ -z "$D" ]; then
     exit 1
 fi
 
-if [ -f "$WORK/update.lock" ] && kill -0 "$(cat "$WORK/update.lock")" 2>/dev/null; then
+mkdir -p "$DIR" "$WORK"
+
+allow_fail() {
     nvram set adblock_allow_add=""
-    nvram set adblock_status="allow failed: update in progress"
+    nvram set adblock_status="$1"
     nvram commit
     exit 1
+}
+
+ALOCK=$WORK/allow.lock
+if [ -f "$WORK/update.lock" ] && kill -0 "$(cat "$WORK/update.lock")" 2>/dev/null; then
+    allow_fail "allow failed: update in progress"
+fi
+if [ -f "$ALOCK" ] && kill -0 "$(cat "$ALOCK")" 2>/dev/null; then
+    allow_fail "allow failed: another allow in progress"
+fi
+echo $$ > "$ALOCK"
+trap 'rm -f "$ALOCK"' EXIT
+
+# Re-check after taking our lock so an update cannot start unnoticed.
+if [ -f "$WORK/update.lock" ] && kill -0 "$(cat "$WORK/update.lock")" 2>/dev/null; then
+    allow_fail "allow failed: update in progress"
 fi
 
-mkdir -p "$DIR" "$WORK"
 OLD_CONFIG_HASH=$(nvram get adblock_config_hash)
 OLD_APPLIED_HASH=$(nvram get adblock_applied_hash)
 OLD_APPLIED_OPTIONS_HASH=$(nvram get adblock_applied_options_hash)

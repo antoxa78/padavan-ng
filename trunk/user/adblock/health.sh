@@ -11,6 +11,10 @@ mkdir -p "$WORK"
 NOW=$(date +%s)
 DOMAINS=$(grep -c '^0\.0\.0\.0 ' "$WORK/hosts.v4" 2>/dev/null)
 [ -z "$DOMAINS" ] && DOMAINS=0
+if [ "$DOMAINS" -eq 0 ] && [ -s "$DIR/hosts.gz" ]; then
+    DOMAINS=$(gzip -dc "$DIR/hosts.gz" 2>/dev/null | grep -c '^0\.0\.0\.0 ')
+    [ -z "$DOMAINS" ] && DOMAINS=0
+fi
 
 if [ "$(nvram get sw_mode)" = "3" ]; then
     if [ -s /var/run/adblock-dnsmasq.pid ] &&
@@ -36,7 +40,10 @@ fi
 T1=$(cut -d' ' -f1 /proc/uptime)
 DNS_MS=$(awk -v a="$T0" -v b="$T1" 'BEGIN { printf "%.0f", (b-a)*1000 }')
 
-GW=$(ip route 2>/dev/null | awk '/^default / { print $3; exit }')
+GW=$(ip route 2>/dev/null | awk '/^default / {
+    for (i = 2; i <= NF; i++)
+        if ($i == "via") { print $(i + 1); exit }
+}')
 if [ -n "$GW" ]; then
     PING=$(ping -c 3 -W 1 -q "$GW" 2>/dev/null |
         sed -n 's|.*min/avg/max = [^/]*/\([^/]*\)/.*|\1|p')

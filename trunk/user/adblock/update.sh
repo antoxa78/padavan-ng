@@ -24,6 +24,13 @@ echo "=== $START_TS update start ==="
 echo $$ > "$LOCK"
 trap 'rm -f "$LOCK"' EXIT
 
+# Our update lock is held; abort if an allow action is applying its change.
+if [ -f "$WORK/allow.lock" ] && kill -0 "$(cat "$WORK/allow.lock")" 2>/dev/null; then
+    echo "=== update skipped: allow in progress ==="
+    logger -t adblock "update skipped: allow in progress"
+    exit 1
+fi
+
 # A paused adblock must not be rebuilt by a scheduled update.
 PAUSE_UNTIL=$(nvram get adblock_pause_until)
 case "$PAUSE_UNTIL" in ''|*[!0-9]*) PAUSE_UNTIL=0;; esac
