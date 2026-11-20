@@ -299,10 +299,12 @@ function ntpSyncNow(){
     .reboot-panel .input-append { margin-bottom: 0; }
     .reboot-panel .input-append input { margin-bottom: 0; }
     .reboot-panel .row-fluid [class*="span"] { margin-bottom: 8px; }
-    .reboot-panel .reboot-days { display: flex; flex-wrap: wrap; margin: 0 -3px -6px; }
+    .reboot-panel .reboot-days { display: flex; flex-wrap: nowrap; margin: 0 -3px; }
     .reboot-panel .reboot-day {
         position: relative;
-        margin: 0 3px 6px;
+        flex: 1 1 0;
+        min-width: 0;
+        margin: 0 3px;
         padding: 0;
         line-height: 18px;
         cursor: pointer;
@@ -320,8 +322,11 @@ function ntpSyncNow(){
     }
     .reboot-panel .reboot-day span {
         display: block;
-        min-width: 34px;
-        padding: 5px 8px;
+        min-width: 0;
+        padding: 5px 2px;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
         border: 1px solid #c5c5c5;
         border-radius: 4px;
         background-color: #f5f5f5;
@@ -346,6 +351,10 @@ function ntpSyncNow(){
     .reboot-panel .reboot-day input:focus + span {
         outline: 2px solid rgba(0,136,204,.35);
         outline-offset: 1px;
+    }
+    @media (max-width: 600px) {
+        .reboot-panel .reboot-days { flex-wrap: wrap; margin-bottom: -6px; }
+        .reboot-panel .reboot-day { flex: 1 1 calc(33.333% - 6px); margin-bottom: 6px; }
     }
 </style>
 </head>
