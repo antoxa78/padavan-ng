@@ -45,7 +45,6 @@ var currentPhase = '<% nvram_get_x("", "adblock_phase"); %>';
 var configDirty = '<% nvram_get_x("", "adblock_config_dirty"); %>' === '1';
 var actionPending = false;
 var actionFinished = false;
-var silentAction = false;
 var formDirty = false;
 
 var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -89,19 +88,18 @@ function bindDirtyTracking() {
 }
 
 function finishAction() {
-    if (actionFinished || (!actionPending && !silentAction))
+    if (actionFinished || !actionPending)
         return;
     actionFinished = true;
     actionPending = false;
-    if (silentAction) {
-        silentAction = false;
-        hideLoading();
-        formDirty = false;
-        showExtraSaveStatus('Removed and saved. Press Update list to rebuild the blocklist.');
-        return;
-    }
     formDirty = false;
     setTimeout(function() { location.reload(); }, 1200);
+}
+
+function finishSilentSave() {
+    hideLoading();
+    formDirty = false;
+    showExtraSaveStatus('Removed and saved. Press Update list to rebuild the blocklist.');
 }
 
 function actionComplete() {
@@ -616,13 +614,29 @@ function submitAction(script, silent) {
     updateMask();
     syncExtraSources();
     showLoading();
-    actionPending = true;
-    actionFinished = false;
-    silentAction = !!silent;
     document.form.action_mode.value = " Apply ";
     document.form.action_script.value = script;
     document.form.current_page.value = "Advanced_Adblock_Content.asp";
     document.form.next_page.value = "";
+    if (silent && window.fetch && window.FormData && window.URLSearchParams) {
+        // Save without navigating the page.  The response HTML is ignored.
+        var fd = new FormData(document.form);
+        fetch('/start_apply.htm', {
+            method: 'POST',
+            body: new URLSearchParams(fd),
+            credentials: 'same-origin'
+        }).then(function(r) {
+            if (!r.ok)
+                throw new Error('HTTP ' + r.status);
+            finishSilentSave();
+        }).catch(function() {
+            hideLoading();
+            showExtraSaveStatus('Save failed; please retry.');
+        });
+        return;
+    }
+    actionPending = true;
+    actionFinished = false;
     document.form.submit();
 }
 
