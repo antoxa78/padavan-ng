@@ -4,7 +4,12 @@ DIR=/etc/storage/adblock
 WORK=/tmp/adblock
 PID=/var/run/adblock-dnsmasq.pid
 
-mkdir -p "$DIR" "$WORK"
+NO_UPDATE=0
+[ "$1" = "--no-update" ] && NO_UPDATE=1
+[ "$ADBLOCK_NO_UPDATE" = "1" ] && NO_UPDATE=1
+
+mkdir -p "$DIR" "$DIR/stats" "$WORK"
+[ -f "$DIR/stats/daily.tsv" ] || : > "$DIR/stats/daily.tsv"
 [ -f "$DIR/sources.conf" ] || cp "$BIN/defaults/sources.conf" "$DIR/sources.conf"
 [ -f "$DIR/custom.hosts" ] || cp "$BIN/defaults/custom.hosts" "$DIR/custom.hosts"
 [ -f "$DIR/custom.allow" ] || cp "$BIN/defaults/custom.allow" "$DIR/custom.allow"
@@ -21,15 +26,19 @@ fi
 
 # AP mode: use the main router (default gateway) as the upstream resolver.
 LANIP=$(ip -4 addr show br0 2>/dev/null | awk '/inet / {sub(/\/.*/,"",$2); print $2; exit}')
+[ -z "$LANIP" ] && LANIP=$(nvram get lan_ipaddr)
 GW=$(ip route 2>/dev/null | awk '/^default / {print $3; exit}')
-[ -z "$GW" ] && GW=$(awk -v lan="$LANIP" '/^nameserver/ && $2 != lan {print $2; exit}' /etc/resolv.conf 2>/dev/null)
+[ -z "$GW" ] && GW=$(awk -v lan="$LANIP" '/^nameserver/ && $2 != lan && $2 !~ /^127\./ {print $2; exit}' /etc/resolv.conf 2>/dev/null)
 [ -z "$GW" ] && GW=192.168.31.1
 echo "nameserver $GW" > "$DIR/resolv.conf"
 
-# Action scripts used by the web UI.
-for a in adblock_apply.sh adblock_update.sh adblock_reset.sh adblock_test.sh adblock_log.sh adblock_stats.sh adblock_export.sh adblock_import.sh; do
-    cp "$BIN/actions/$a" "/tmp/$a"
-    chmod 755 "/tmp/$a"
+# Action scripts used by the web UI.  Copy to a temporary name and rename so a
+# script that is currently executing is never truncated underneath itself.
+for a in adblock_apply.sh adblock_save.sh adblock_update.sh adblock_reset.sh adblock_test.sh adblock_log.sh adblock_stats.sh adblock_export.sh adblock_import.sh; do
+    if [ -f "$BIN/actions/$a" ]; then
+        cp "$BIN/actions/$a" "/tmp/$a.new" && mv "/tmp/$a.new" "/tmp/$a"
+        chmod 755 "/tmp/$a"
+    fi
 done
 
 # First-boot NVRAM defaults for the settings page.
@@ -42,10 +51,27 @@ done
 [ -z "$(nvram get adblock_sources)" ] && nvram set adblock_sources="$(cat "$DIR/sources.conf")"
 [ -z "$(nvram get adblock_custom)" ] && nvram set adblock_custom="$(cat "$DIR/custom.hosts")"
 [ -z "$(nvram get adblock_allow)" ] && nvram set adblock_allow="$(cat "$DIR/custom.allow")"
+[ -z "$(nvram get adblock_phase)" ] && nvram set adblock_phase=idle
+[ -z "$(nvram get adblock_progress)" ] && nvram set adblock_progress=""
+[ -z "$(nvram get adblock_last_attempt)" ] && nvram set adblock_last_attempt="never"
+[ -z "$(nvram get adblock_update_started)" ] && nvram set adblock_update_started=""
+[ -z "$(nvram get adblock_config_dirty)" ] && nvram set adblock_config_dirty=0
+[ -z "$(nvram get adblock_config_hash)" ] && nvram set adblock_config_hash=""
+[ -z "$(nvram get adblock_applied_hash)" ] && nvram set adblock_applied_hash=""
+[ -z "$(nvram get adblock_source_status)" ] && nvram set adblock_source_status=""
+[ -z "$(nvram get adblock_stats_short)" ] && nvram set adblock_stats_short="Blocked today: 0 · this month: 0"
+[ -z "$(nvram get adblock_stats)" ] && nvram set adblock_stats="Blocked queries
+  today: 0
+  this month: 0
+  all time: 0"
+PRESET_CFG=$(cat "$BIN/defaults/presets.conf")
+[ "$(nvram get adblock_presets_config)" != "$PRESET_CFG" ] && nvram set adblock_presets_config="$PRESET_CFG"
 nvram commit
 
 if [ "$(nvram get adblock_enable)" = "0" ]; then
     nvram set adblock_status="disabled"
+    nvram set adblock_phase=disabled
+    nvram set adblock_progress=""
     nvram commit
     exit 0
 fi
@@ -75,11 +101,19 @@ if [ ! -s "$WORK/hosts.v4" ] && [ -s "$DIR/hosts.gz" ]; then
 fi
 
 if [ ! -s "$WORK/hosts.v4" ]; then
-    "$BIN/update.sh" >/dev/null 2>&1
+    if [ "$NO_UPDATE" = "1" ]; then
+        nvram set adblock_config_dirty=1
+        nvram set adblock_status="no blocklist yet; update list to apply"
+        nvram set adblock_phase=idle
+        nvram set adblock_progress=""
+        nvram commit
+    else
+        "$BIN/update.sh" >/dev/null 2>&1
+    fi
 fi
 
 if [ -s "$WORK/hosts.v4" ] && [ ! -s "$WORK/hosts.v6" ]; then
-    if awk '{print "::1 " $2}' "$WORK/hosts.v4" > "$WORK/hosts.v6.tmp" 2>/dev/null && [ -s "$WORK/hosts.v6.tmp" ]; then
+    if sed 's/^0\.0\.0\.0 /::1 /' "$WORK/hosts.v4" > "$WORK/hosts.v6.tmp" 2>/dev/null && [ -s "$WORK/hosts.v6.tmp" ]; then
         mv "$WORK/hosts.v6.tmp" "$WORK/hosts.v6"
     else
         rm -f "$WORK/hosts.v6.tmp"
@@ -132,8 +166,13 @@ finish() {
     LINES=$(grep -c '^0\.0\.0\.0 ' "$WORK/hosts.v4")
     write_cron
     /sbin/mtd_storage.sh save >/dev/null 2>&1
-    nvram set adblock_status="$LINES domains (ready)"
-    [ -z "$(nvram get adblock_last_success)" ] && nvram set adblock_last_success="never"
+    if [ "${ADBLOCK_KEEP_STATUS:-0}" != "1" ]; then
+        nvram set adblock_status="$LINES domains (ready)"
+        nvram set adblock_phase=idle
+        nvram set adblock_progress=""
+        [ -z "$(nvram get adblock_last_success)" ] && nvram set adblock_last_success="never"
+        [ -z "$(nvram get adblock_last_attempt)" ] && nvram set adblock_last_attempt="never"
+    fi
     nvram commit
     logger -t adblock "started ($1) with $LINES domains"
 }
@@ -141,7 +180,13 @@ finish() {
 SW_MODE=$(nvram get sw_mode)
 if [ "$SW_MODE" = "3" ]; then
     # AP mode: separate resolver + DNS redirects.
-    if ! "$BIN/restart.sh"; then
+    # Do not bounce a healthy resolver just because settings were saved; the
+    # active blocklist is only replaced by update.sh.
+    NEED_RESTART=1
+    if [ -s "$PID" ] && kill -0 "$(cat "$PID")" 2>/dev/null && [ -s "$WORK/hosts.v4" ]; then
+        NEED_RESTART=0
+    fi
+    if [ "$NEED_RESTART" = "1" ] && ! "$BIN/restart.sh"; then
         iptables -t nat -D PREROUTING -i br0 -p udp --dport 53 -j REDIRECT --to-ports 53 2>/dev/null
         iptables -t nat -D PREROUTING -i br0 -p tcp --dport 53 -j REDIRECT --to-ports 53 2>/dev/null
         ip6tables -D FORWARD -i br0 -p udp --dport 53 -j DROP 2>/dev/null

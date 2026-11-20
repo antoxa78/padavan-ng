@@ -13,6 +13,23 @@
 <style>
     .well { box-sizing: border-box; }
     .adblock-time input { box-sizing: border-box; }
+    .adblock-sources td { vertical-align: middle; }
+    .adblock-sources .src-url { font-size: 11px; word-break: break-all; }
+    .adblock-extra-row { margin-bottom: 6px; }
+    .adblock-extra-row input { width: 68%; }
+    .adblock-extra-row .extra-status { margin-left: 8px; font-size: 12px; }
+    .adblock-status-line { margin-top: 6px; }
+    @media (max-width: 1000px) {
+        .wrapper { width: auto; max-width: 100%; min-width: 0; }
+    }
+    .adblock-status-row { display: flex; flex-wrap: wrap; }
+    .adblock-status-row > .span6 { display: flex; }
+    .adblock-status-row .well { width: 100%; min-height: 132px; }
+    @media (max-width: 760px) {
+        .adblock-status-row { display: block; }
+        .adblock-status-row > .span6 { display: block; width: auto; float: none; margin-left: 0; }
+        .adblock-status-row > .span6 + .span6 { margin-top: 10px; }
+    }
 </style>
 
 <script type="text/javascript" src="/jquery.js"></script>
@@ -22,82 +39,73 @@
 <script>
 <% login_state_hook(); %>
 
-var presetMask = parseInt('<% nvram_get("adblock_presets"); %>');
+var presetMask = parseInt('<% nvram_get_x("", "adblock_presets"); %>');
 if (isNaN(presetMask)) presetMask = 127;
+var currentPhase = '<% nvram_get_x("", "adblock_phase"); %>';
+var configDirty = '<% nvram_get_x("", "adblock_config_dirty"); %>' === '1';
+var actionPending = false;
+var formDirty = false;
+
+var monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function initial() {
     show_banner(1);
     show_menu(5, 9, 4);
     show_footer();
-    initPresets();
-    if (!document.form.adblock_update_hour.value)
-        document.form.adblock_update_hour.value = 4;
-    if (!document.form.adblock_update_min.value)
-        document.form.adblock_update_min.value = 15;
+    renderPresets();
+    setPresetPanel(presetPanelOpen());
+    renderExtraSources();
     fixStatusText();
     updateStatusBadge();
+    updateDirtyNotice();
+    updatePhaseText();
+    updateSourceStatuses();
     updateScheduleHint();
+    bindDirtyTracking();
+    scheduleAutoRefresh();
 }
 
-function initPresets() {
-    var boxes = document.getElementsByName('preset');
-    for (var i = 0; i < boxes.length; i++) {
-        boxes[i].checked = (presetMask & (1 << parseInt(boxes[i].value))) != 0;
-    }
-    updateMask();
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function updateMask() {
-    var mask = 0;
-    var boxes = document.getElementsByName('preset');
-    for (var i = 0; i < boxes.length; i++) {
-        if (boxes[i].checked)
-            mask |= (1 << parseInt(boxes[i].value));
-    }
-    document.form.adblock_presets.value = mask;
-    updatePresetHint();
+function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, '&quot;');
 }
 
-function setPresets(mask) {
-    var boxes = document.getElementsByName('preset');
-    for (var i = 0; i < boxes.length; i++)
-        boxes[i].checked = (mask & (1 << parseInt(boxes[i].value))) != 0;
-    updateMask();
+function markDirty() {
+    formDirty = true;
 }
 
-function defaultPresets() {
-    setPresets(127);
-}
-
-function clearPresets() {
-    setPresets(0);
-}
-
-function updatePresetHint() {
-    var hint = document.getElementById('presetHint');
-    if (!hint)
+function bindDirtyTracking() {
+    if (!document.form)
         return;
-    var n = 0;
-    var boxes = document.getElementsByName('preset');
-    for (var i = 0; i < boxes.length; i++)
-        if (boxes[i].checked) n++;
-    if (n === 0)
-        hint.innerHTML = 'No presets selected - extra sources and custom domains only.';
-    else
-        hint.innerHTML = n + ' preset source' + (n === 1 ? '' : 's') + ' selected.';
+    document.form.addEventListener('input', markDirty);
+    document.form.addEventListener('change', markDirty);
 }
 
-function fixStatusText() {
-    var st = document.getElementById('statusText');
-    if (st && !st.innerHTML.trim())
-        st.innerHTML = 'not updated yet';
-    var lu = document.getElementById('lastUpdate');
-    if (lu && !lu.innerHTML.trim())
-        lu.innerHTML = 'never';
+function actionComplete() {
+    if (!actionPending)
+        return;
+    actionPending = false;
+    setTimeout(function() { location.reload(); }, 1200);
+}
+
+function refreshPage() {
+    if (formDirty && !confirm('Discard unsaved changes?'))
+        return;
+    location.reload();
 }
 
 function adblockPad2(n) {
     return (n < 10 ? '0' : '') + n;
+}
+
+function fmtDate(d) {
+    return dayNames[d.getDay()] + ' ' + d.getDate() + ' ' + monthNames[d.getMonth()] +
+           ' ' + adblockPad2(d.getHours()) + ':' + adblockPad2(d.getMinutes());
 }
 
 function getScheduleValues() {
@@ -106,29 +114,6 @@ function getScheduleValues() {
     if (isNaN(h) || h < 0 || h > 23) h = 4;
     if (isNaN(m) || m < 0 || m > 59) m = 15;
     return { h: h, m: m };
-}
-
-function updateStatusBadge() {
-    var badge = document.getElementById('statusBadge');
-    if (!badge)
-        return;
-    var enabled = document.form.adblock_enable.value === '1';
-    var st = document.getElementById('statusText');
-    var status = st ? st.innerHTML.toLowerCase() : '';
-    var cls = 'label-success';
-    var text = 'Enabled';
-    if (!enabled) {
-        cls = 'label-important';
-        text = 'Disabled';
-    } else if (status.indexOf('fail') >= 0 || status.indexOf('error') >= 0) {
-        cls = 'label-important';
-        text = 'Error';
-    } else if (status.indexOf('updating') >= 0) {
-        cls = 'label-warning';
-        text = 'Updating';
-    }
-    badge.className = 'label ' + cls;
-    badge.innerHTML = text;
 }
 
 function updateScheduleHint() {
@@ -158,7 +143,7 @@ function updateScheduleHint() {
         longText = 'Runs every 6 hours at ' + hm + ', ' + h6[0] + ', ' + h6[1] + ' and ' + h6[2] + '.';
     } else {
         shortText = 'Off';
-        longText = 'Automatic updates are disabled. Use Update now to refresh manually.';
+        longText = 'Automatic updates are disabled. Use Update list to refresh manually.';
     }
 
     var top = document.getElementById('scheduleHintTop');
@@ -167,6 +152,55 @@ function updateScheduleHint() {
     if (short) short.innerHTML = shortText;
     if (top) top.innerHTML = longText;
     if (inline) inline.innerHTML = longText;
+    updateNextRun();
+}
+
+function updateNextRun() {
+    var el = document.getElementById('nextRun');
+    if (!el)
+        return;
+    var interval = document.form.adblock_interval.value;
+    if (interval === 'off') {
+        el.innerHTML = 'disabled';
+        return;
+    }
+    var v = getScheduleValues();
+    var now = new Date();
+    var candidates = [];
+
+    function at(dayOffset, hour) {
+        var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset,
+                         hour, v.m, 0, 0);
+        if (d.getTime() > now.getTime())
+            candidates.push(d);
+    }
+
+    if (interval === 'weekly') {
+        for (var i = 0; i < 8; i++) {
+            var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i,
+                             v.h, v.m, 0, 0);
+            if (d.getDay() === 0 && d.getTime() > now.getTime())
+                candidates.push(d);
+        }
+    } else if (interval === 'daily') {
+        at(0, v.h);
+        at(1, v.h);
+    } else if (interval === '12h') {
+        at(0, v.h); at(0, (v.h + 12) % 24);
+        at(1, v.h); at(1, (v.h + 12) % 24);
+    } else if (interval === '6h') {
+        for (var j = 0; j < 2; j++) {
+            at(j, v.h); at(j, (v.h + 6) % 24);
+            at(j, (v.h + 12) % 24); at(j, (v.h + 18) % 24);
+        }
+    }
+
+    if (!candidates.length) {
+        el.innerHTML = '&mdash;';
+        return;
+    }
+    candidates.sort(function(a, b) { return a.getTime() - b.getTime(); });
+    el.innerHTML = escapeHtml(fmtDate(candidates[0]));
 }
 
 function validateSchedule() {
@@ -187,50 +221,380 @@ function validateSchedule() {
     return true;
 }
 
+function parsePresetConfig() {
+    var el = document.getElementById('presetConfigData');
+    if (!el)
+        return [];
+    var lines = el.value.split('\n');
+    var out = [];
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].replace(/\r$/, '');
+        if (!line || line.charAt(0) === '#')
+            continue;
+        var p = line.split('|');
+        if (p.length < 3)
+            continue;
+        out.push({ idx: parseInt(p[0], 10), label: p[1], url: p[2] });
+    }
+    return out;
+}
+
+function renderPresets() {
+    var rows = document.getElementById('presetRows');
+    if (!rows)
+        return;
+    var presets = parsePresetConfig();
+    var html = '';
+    for (var i = 0; i < presets.length; i++) {
+        var p = presets[i];
+        var checked = (presetMask & (1 << p.idx)) ? ' checked' : '';
+        html += '<tr>';
+        html += '<td><input type="checkbox" name="preset" value="' + p.idx + '"' + checked +
+                ' data-label="' + escapeAttr(p.label) + '" onchange="updateMask();"></td>';
+        html += '<td><strong>' + escapeHtml(p.label) + '</strong>' +
+                '<div class="src-url muted">' + escapeHtml(p.url) + '</div></td>';
+        html += '<td><span class="src-status muted" data-url="' + escapeAttr(p.url) +
+                '">awaiting update</span></td>';
+        html += '</tr>';
+    }
+    rows.innerHTML = html;
+    updateMask();
+}
+
+function updateMask() {
+    var mask = 0;
+    var boxes = document.getElementsByName('preset');
+    for (var i = 0; i < boxes.length; i++) {
+        if (boxes[i].checked)
+            mask |= (1 << parseInt(boxes[i].value, 10));
+    }
+    document.form.adblock_presets.value = mask;
+    updatePresetHint();
+}
+
+function setPresets(mask) {
+    var boxes = document.getElementsByName('preset');
+    for (var i = 0; i < boxes.length; i++)
+        boxes[i].checked = (mask & (1 << parseInt(boxes[i].value, 10))) != 0;
+    updateMask();
+}
+
+function defaultPresets() {
+    setPresets(127);
+}
+
+function clearPresets() {
+    setPresets(0);
+}
+
+function updatePresetHint() {
+    var hint = document.getElementById('presetHint');
+    var summary = document.getElementById('presetSummary');
+    var boxes = document.getElementsByName('preset');
+    var n = 0;
+    var names = [];
+    for (var i = 0; i < boxes.length; i++) {
+        if (boxes[i].checked) {
+            n++;
+            if (boxes[i].getAttribute('data-label'))
+                names.push(boxes[i].getAttribute('data-label'));
+        }
+    }
+    var shortText;
+    if (n === 0)
+        shortText = 'No preset sources selected.';
+    else
+        shortText = n + ' of ' + boxes.length + ' preset source' + (n === 1 ? '' : 's') + ' selected';
+    if (n > 0 && n <= 4 && names.length)
+        shortText += ': ' + names.join(', ');
+    else if (n > 0)
+        shortText += '.';
+    if (summary)
+        summary.innerHTML = escapeHtml(shortText);
+    if (hint) {
+        if (n === 0)
+            hint.innerHTML = 'No preset sources selected &mdash; extra sources and custom domains only.';
+        else
+            hint.innerHTML = n + ' of ' + boxes.length + ' preset source' + (n === 1 ? '' : 's') + ' selected.';
+    }
+}
+
+function presetPanelOpen() {
+    try { return sessionStorage.getItem('adblockPresetOpen') === '1'; } catch (e) { return false; }
+}
+
+function setPresetPanel(open) {
+    var body = document.getElementById('presetBody');
+    var btn = document.getElementById('presetToggle');
+    var text = document.getElementById('presetToggleText');
+    var icon = document.getElementById('presetToggleIcon');
+    if (!body || !btn)
+        return;
+    body.style.display = open ? '' : 'none';
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (text) text.innerHTML = open ? 'Hide' : 'Show';
+    if (icon) icon.className = open ? 'icon-chevron-up' : 'icon-chevron-down';
+    try { sessionStorage.setItem('adblockPresetOpen', open ? '1' : '0'); } catch (e) {}
+}
+
+function togglePresets() {
+    var body = document.getElementById('presetBody');
+    setPresetPanel(!body || body.style.display === 'none');
+}
+
+function sourceStatusMap() {
+    var map = {};
+    var el = document.getElementById('sourceStatusData');
+    if (!el)
+        return map;
+    var lines = el.value.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].replace(/\r$/, '');
+        if (!line)
+            continue;
+        var p = line.split('|');
+        if (p.length >= 3)
+            map[p[0]] = { lines: p[1], state: p[2], time: p[3] || '' };
+    }
+    return map;
+}
+
+function statusLabel(st) {
+    var text;
+    if (!st)
+        text = 'awaiting update';
+    else if (st.state === 'ok')
+        text = st.lines + ' lines';
+    else if (st.state === 'failed')
+        text = 'download failed';
+    else if (st.state === 'empty')
+        text = 'no usable domains';
+    else
+        text = st.state;
+    if (st && st.time)
+        text += ' · ' + st.time;
+    return text;
+}
+
+function statusClass(st) {
+    if (!st)
+        return 'muted';
+    return st.state === 'ok' ? 'text-success' : 'text-error';
+}
+
+function updateSourceStatuses() {
+    var map = sourceStatusMap();
+    var els = document.querySelectorAll('.src-status');
+    for (var i = 0; i < els.length; i++) {
+        var st = map[els[i].getAttribute('data-url')];
+        els[i].innerHTML = escapeHtml(statusLabel(st));
+        els[i].className = 'src-status ' + statusClass(st);
+    }
+    var extras = document.querySelectorAll('.extra-source');
+    for (var j = 0; j < extras.length; j++) {
+        var span = extras[j].parentNode.querySelector('.extra-status');
+        if (!span)
+            continue;
+        var est = map[extras[j].value];
+        span.innerHTML = escapeHtml(statusLabel(est));
+        span.className = 'extra-status ' + statusClass(est);
+    }
+}
+
+function renderExtraSources() {
+    var list = document.getElementById('extraSourcesList');
+    if (!list)
+        return;
+    list.innerHTML = '';
+    var el = document.getElementById('extraSourcesData');
+    var lines = el ? el.value.split('\n') : [];
+    var count = 0;
+    for (var i = 0; i < lines.length; i++) {
+        var url = lines[i].replace(/^\s+|\s+$/g, '');
+        if (!url)
+            continue;
+        addExtraSource(url);
+        count++;
+    }
+    if (count === 0)
+        list.innerHTML = '<div class="muted" id="noExtraSources">No extra sources.</div>';
+}
+
+function addExtraSource(url) {
+    var list = document.getElementById('extraSourcesList');
+    if (!list)
+        return;
+    var hint = document.getElementById('noExtraSources');
+    if (hint)
+        hint.parentNode.removeChild(hint);
+    var row = document.createElement('div');
+    row.className = 'adblock-extra-row';
+    row.innerHTML = '<input type="text" class="input-xxlarge extra-source" value="' +
+        escapeAttr(url || '') + '" placeholder="https://example.com/hosts.txt"> ' +
+        '<button type="button" class="btn btn-mini" onclick="removeExtraSource(this);">' +
+        '<i class="icon-remove"></i> Remove</button> ' +
+        '<button type="button" class="btn btn-mini btn-primary" onclick="saveSettings();">' +
+        '<i class="icon-ok icon-white"></i> Apply</button> ' +
+        '<span class="extra-status muted">awaiting update</span>';
+    list.appendChild(row);
+    var input = row.querySelector('.extra-source');
+    if (input)
+        input.addEventListener('input', markDirty);
+}
+
+function removeExtraSource(btn) {
+    var row = btn.parentNode;
+    row.parentNode.removeChild(row);
+    markDirty();
+    syncExtraSources();
+    var list = document.getElementById('extraSourcesList');
+    if (list && list.children.length === 0)
+        list.innerHTML = '<div class="muted" id="noExtraSources">No extra sources.</div>';
+    // Persist the removal now; the row's Apply button disappears with the row.
+    saveSettings();
+}
+
+function syncExtraSources() {
+    var inputs = document.querySelectorAll('.extra-source');
+    var vals = [];
+    for (var i = 0; i < inputs.length; i++) {
+        var v = inputs[i].value.replace(/^\s+|\s+$/g, '');
+        if (v)
+            vals.push(v);
+    }
+    document.getElementById('extraSourcesValue').value = vals.join('\n');
+}
+
+function validateSources() {
+    var inputs = document.querySelectorAll('.extra-source');
+    for (var i = 0; i < inputs.length; i++) {
+        var v = inputs[i].value.replace(/^\s+|\s+$/g, '');
+        if (!v)
+            continue;
+        if (!/^https?:\/\/.+/.test(v)) {
+            alert('Extra source must start with http:// or https://:\n' + v);
+            inputs[i].focus();
+            return false;
+        }
+    }
+    return true;
+}
+
+function fixStatusText() {
+    var st = document.getElementById('statusText');
+    if (st && !st.innerHTML.trim())
+        st.innerHTML = 'not updated yet';
+    var lu = document.getElementById('lastUpdate');
+    if (lu && !lu.innerHTML.trim())
+        lu.innerHTML = 'never';
+    var la = document.getElementById('lastAttempt');
+    if (la && !la.innerHTML.trim())
+        la.innerHTML = 'never';
+    var bs = document.getElementById('blockedStats');
+    if (bs && !bs.innerHTML.trim())
+        bs.innerHTML = 'Blocked today: 0 &middot; this month: 0';
+}
+
+function isActivePhase() {
+    return currentPhase === 'downloading' || currentPhase === 'merging' ||
+           currentPhase === 'applying';
+}
+
+function updateStatusBadge() {
+    var badge = document.getElementById('statusBadge');
+    if (!badge)
+        return;
+    var enabled = document.form.adblock_enable.value === '1';
+    var st = document.getElementById('statusText');
+    var status = st ? st.innerHTML.toLowerCase() : '';
+    var cls = 'label-success';
+    var text = 'Enabled';
+    if (!enabled) {
+        cls = 'label-important';
+        text = 'Disabled';
+    } else if (isActivePhase()) {
+        cls = 'label-warning';
+        text = 'Updating';
+    } else if (currentPhase === 'error' ||
+               /fail|error|reject|missing|invalid/.test(status)) {
+        cls = 'label-important';
+        text = 'Error';
+    } else if (configDirty) {
+        cls = 'label-info';
+        text = 'Saved';
+    }
+    badge.className = 'label ' + cls;
+    badge.innerHTML = text;
+}
+
+function updateDirtyNotice() {
+    var el = document.getElementById('dirtyNotice');
+    if (!el)
+        return;
+    var enabled = document.form.adblock_enable.value === '1';
+    el.style.display = (configDirty && enabled) ? '' : 'none';
+}
+
+function updatePhaseText() {
+    var el = document.getElementById('phaseText');
+    if (!el)
+        return;
+    var progress = el.innerHTML.trim();
+    var labels = {
+        downloading: 'Downloading',
+        merging: 'Merging sources',
+        applying: 'Applying blocklist',
+        error: 'Error'
+    };
+    if (labels[currentPhase]) {
+        el.innerHTML = '<strong>' + labels[currentPhase] + '</strong>' +
+                       (progress ? ' &mdash; ' + escapeHtml(progress) : '');
+        el.style.display = '';
+    } else if (progress) {
+        el.innerHTML = escapeHtml(progress);
+        el.style.display = '';
+    } else {
+        el.innerHTML = '';
+        el.style.display = 'none';
+    }
+}
+
+function scheduleAutoRefresh() {
+    if (!formDirty && isActivePhase())
+        setTimeout(function() { location.reload(); }, 8000);
+}
+
 function submitAction(script) {
     if (!login_safe())
         return;
     updateMask();
+    syncExtraSources();
     showLoading();
+    actionPending = true;
     document.form.action_mode.value = " Apply ";
     document.form.action_script.value = script;
-    document.form.current_page.value = "/Advanced_Adblock_Content.asp";
+    document.form.current_page.value = "Advanced_Adblock_Content.asp";
     document.form.next_page.value = "";
     document.form.submit();
 }
 
-function applyRule() {
-    if (!validateSchedule())
+function saveSettings() {
+    if (!validateSchedule() || !validateSources())
         return;
-    submitAction('adblock_apply.sh');
+    submitAction('adblock_save.sh');
 }
 
 function updateNow() {
+    if (!validateSchedule() || !validateSources())
+        return;
     submitAction('adblock_update.sh');
 }
 
 function resetDefaults() {
+    if (!confirm('Restore the default sources and schedule?\n\n' +
+                 'The blocklist is not downloaded until you press Update list.'))
+        return;
     submitAction('adblock_reset.sh');
-}
-
-function testDomain() {
-    submitAction('adblock_test.sh');
-}
-
-function viewLog() {
-    submitAction('adblock_log.sh');
-}
-
-function refreshStats() {
-    submitAction('adblock_stats.sh');
-}
-
-function exportSettings() {
-    submitAction('adblock_export.sh');
-}
-
-function importSettings() {
-    submitAction('adblock_import.sh');
 }
 
 function done_validating(action) {
@@ -253,7 +617,7 @@ function done_validating(action) {
 
     <div id="Loading" class="popup_bg"></div>
 
-    <iframe name="hidden_frame" id="hidden_frame" src="" width="0" height="0" frameborder="0"></iframe>
+    <iframe name="hidden_frame" id="hidden_frame" src="" width="0" height="0" frameborder="0" onload="actionComplete();"></iframe>
     <form method="post" name="form" id="ruleForm" action="/start_apply.htm" target="hidden_frame">
 
     <input type="hidden" name="current_page" value="Advanced_Adblock_Content.asp">
@@ -264,6 +628,11 @@ function done_validating(action) {
     <input type="hidden" name="action_mode" value="">
     <input type="hidden" name="action_script" value="">
     <input type="hidden" name="adblock_presets" value="">
+    <input type="hidden" name="adblock_extra_sources" id="extraSourcesValue" value="">
+
+    <textarea id="presetConfigData" style="display:none;"><% nvram_get_x("", "adblock_presets_config"); %></textarea>
+    <textarea id="sourceStatusData" style="display:none;"><% nvram_get_x("", "adblock_source_status"); %></textarea>
+    <textarea id="extraSourcesData" style="display:none;"><% nvram_get_x("", "adblock_extra_sources"); %></textarea>
 
     <div class="container-fluid">
         <div class="row-fluid">
@@ -289,24 +658,31 @@ function done_validating(action) {
 
                                     <div class="alert alert-info" style="margin: 10px;">
                                         DNS blocklist for clients connected through this router or AP.
+                                        Both IPv4 and IPv6 DNS are filtered.
                                         AP mode uses a separate resolver; router mode integrates with the system dnsmasq.
-                                        The list is downloaded on first update; progress is shown in the update log below.
+                                        Save settings first, then press <strong>Update list</strong> to rebuild the blocklist.
                                     </div>
 
-                                    <div class="row-fluid" style="margin: 0 10px 10px;">
+                                    <div class="row-fluid adblock-status-row" style="margin: 0 0 10px; padding: 0 10px; box-sizing: border-box;">
                                         <div class="span6">
                                             <div class="well" style="margin-bottom: 0; padding: 12px;">
                                                 <div class="clearfix">
                                                     <span class="pull-left"><strong>Status</strong></span>
                                                     <span class="pull-right">
-                                                        <button type="button" class="btn btn-mini" style="margin-right: 6px;" onclick="location.reload();"><i class="icon-refresh"></i> Refresh</button>
+                                                        <button type="button" class="btn btn-mini" style="margin-right: 6px;" onclick="refreshPage();"><i class="icon-refresh"></i> Refresh</button>
                                                         <span id="statusBadge" class="label">Status</span>
                                                     </span>
                                                 </div>
                                                 <div class="muted" style="margin-top: 8px;">
-                                                    Last successful update: <span id="lastUpdate"><% nvram_dump("adblock_last_success","never"); %></span>
+                                                    Last successful list update: <span id="lastUpdate"><% nvram_get_x("", "adblock_last_success"); %></span><br>
+                                                    Last attempt: <span id="lastAttempt"><% nvram_get_x("", "adblock_last_attempt"); %></span>
                                                 </div>
-                                                <div class="muted" id="statusText"><% nvram_dump("adblock_status","not updated yet"); %></div>
+                                                <div class="muted adblock-status-line" id="blockedStats"><% nvram_get_x("", "adblock_stats_short"); %></div>
+                                                <div class="muted adblock-status-line" id="statusText"><% nvram_get_x("", "adblock_status"); %></div>
+                                                <div class="muted adblock-status-line" id="phaseText"><% nvram_get_x("", "adblock_progress"); %></div>
+                                                <div class="alert alert-warning" id="dirtyNotice" style="display:none; margin:8px 0 0; padding:6px 10px;">
+                                                    Settings saved. Press <strong>Update list</strong> to rebuild the blocklist.
+                                                </div>
                                             </div>
                                         </div>
                                         <div class="span6">
@@ -316,6 +692,7 @@ function done_validating(action) {
                                                     <span class="pull-right muted" id="scheduleShort"></span>
                                                 </div>
                                                 <div class="muted" style="margin-top: 8px;" id="scheduleHintTop"></div>
+                                                <div class="muted" style="margin-top: 6px;">Next run: <span id="nextRun"></span></div>
                                             </div>
                                         </div>
                                     </div>
@@ -326,9 +703,9 @@ function done_validating(action) {
                                             <tr>
                                                 <th width="35%">Adblock enabled</th>
                                                 <td>
-                                                    <select name="adblock_enable" class="input" onchange="updateStatusBadge();">
-                                                        <option value="1" <% nvram_match("adblock_enable","1","selected"); %>>Enabled</option>
-                                                        <option value="0" <% nvram_match("adblock_enable","0","selected"); %>>Disabled</option>
+                                                    <select name="adblock_enable" class="input" onchange="updateStatusBadge(); updateDirtyNotice();">
+                                                        <option value="1" <% nvram_match_x("", "adblock_enable", "1", "selected"); %>>Enabled</option>
+                                                        <option value="0" <% nvram_match_x("", "adblock_enable", "0", "selected"); %>>Disabled</option>
                                                     </select>
                                                 </td>
                                             </tr>
@@ -336,11 +713,11 @@ function done_validating(action) {
                                                 <th>Update interval</th>
                                                 <td>
                                                     <select name="adblock_interval" class="input" onchange="updateScheduleHint();">
-                                                        <option value="weekly" <% nvram_match("adblock_interval","weekly","selected"); %>>Weekly</option>
-                                                        <option value="daily" <% nvram_match("adblock_interval","daily","selected"); %>>Daily</option>
-                                                        <option value="12h" <% nvram_match("adblock_interval","12h","selected"); %>>Every 12 hours</option>
-                                                        <option value="6h" <% nvram_match("adblock_interval","6h","selected"); %>>Every 6 hours</option>
-                                                        <option value="off" <% nvram_match("adblock_interval","off","selected"); %>>Disabled</option>
+                                                        <option value="weekly" <% nvram_match_x("", "adblock_interval", "weekly", "selected"); %>>Weekly</option>
+                                                        <option value="daily" <% nvram_match_x("", "adblock_interval", "daily", "selected"); %>>Daily</option>
+                                                        <option value="12h" <% nvram_match_x("", "adblock_interval", "12h", "selected"); %>>Every 12 hours</option>
+                                                        <option value="6h" <% nvram_match_x("", "adblock_interval", "6h", "selected"); %>>Every 6 hours</option>
+                                                        <option value="off" <% nvram_match_x("", "adblock_interval", "off", "selected"); %>>Disabled</option>
                                                     </select>
                                                 </td>
                                             </tr>
@@ -348,12 +725,12 @@ function done_validating(action) {
                                                 <th>Update time</th>
                                                 <td>
                                                     <input type="text" class="input-mini" name="adblock_update_hour" maxlength="2"
-                                                           value="<% nvram_get("adblock_update_hour"); %>"
+                                                           value="<% nvram_get_x("", "adblock_update_hour"); %>"
                                                            onchange="updateScheduleHint();" onkeyup="updateScheduleHint();"
                                                            onKeyPress="return is_number(this,event);" />
                                                     <span class="help-inline">:</span>
                                                     <input type="text" class="input-mini" name="adblock_update_min" maxlength="2"
-                                                           value="<% nvram_get("adblock_update_min"); %>"
+                                                           value="<% nvram_get_x("", "adblock_update_min"); %>"
                                                            onchange="updateScheduleHint();" onkeyup="updateScheduleHint();"
                                                            onKeyPress="return is_number(this,event);" />
                                                     <span class="help-inline">24-hour clock</span>
@@ -365,61 +742,42 @@ function done_validating(action) {
 
                                     <div class="well" style="margin: 0 10px 10px; padding: 12px;">
                                         <div class="clearfix">
-                                            <h4 class="pull-left" style="margin-top: 0;">Sources</h4>
+                                            <h4 class="pull-left" style="margin-top: 0;">Preset sources</h4>
                                             <div class="pull-right">
+                                                <button type="button" class="btn btn-mini btn-primary" onclick="saveSettings();"><i class="icon-ok icon-white"></i> Apply</button>
                                                 <button type="button" class="btn btn-mini" onclick="defaultPresets();">Defaults</button>
                                                 <button type="button" class="btn btn-mini" onclick="clearPresets();">Clear all</button>
+                                                <button type="button" class="btn btn-mini" id="presetToggle" onclick="togglePresets();" aria-expanded="false" aria-controls="presetBody">
+                                                    <i class="icon-chevron-down" id="presetToggleIcon"></i> <span id="presetToggleText">Show</span>
+                                                </button>
                                             </div>
                                         </div>
-                                        <p class="muted">Preset lists are downloaded during an update. Select the lists you want to use, or clear all to use only extra sources and custom domains.</p>
-                                        <div class="help-block" id="presetHint" style="margin-bottom: 10px;"></div>
-                                        <div class="row-fluid">
-                                            <div class="span6">
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="0" onchange="updateMask()"> AnudeepND</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="1" onchange="updateMask()"> AdAway official</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="2" onchange="updateMask()"> StevenBlack Unified</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="3" onchange="updateMask()"> Pete Lowe</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="4" onchange="updateMask()"> EasyList ad servers</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="5" onchange="updateMask()"> EasyPrivacy</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="6" onchange="updateMask()"> EasyList Hebrew</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="7" onchange="updateMask()"> EasyList Germany + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="8" onchange="updateMask()"> Liste FR + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="9" onchange="updateMask()"> EasyList Italy + EasyList</label>
-                                            </div>
-                                            <div class="span6">
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="10" onchange="updateMask()"> EasyList Dutch + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="11" onchange="updateMask()"> EasyList China + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="12" onchange="updateMask()"> EasyList Spanish + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="13" onchange="updateMask()"> EasyList Polish + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="14" onchange="updateMask()"> EasyList Portuguese + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="15" onchange="updateMask()"> RU AdList + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="16" onchange="updateMask()"> KoreanList + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="17" onchange="updateMask()"> IndianList + EasyList</label>
-                                                <label class="checkbox"><input type="checkbox" name="preset" value="18" onchange="updateMask()"> Nordic Filters + EasyList</label>
-                                            </div>
+                                        <p class="muted" id="presetSummary" style="margin-bottom: 0;">Loading preset sources...</p>
+                                        <div id="presetBody" style="display:none; margin-top: 10px;">
+                                            <p class="muted">Preset lists are downloaded during an update. Uncheck a source to remove it from the next build.</p>
+                                            <div class="help-block" id="presetHint" style="margin-bottom: 10px;"></div>
+                                            <table class="table table-condensed adblock-sources">
+                                                <thead>
+                                                    <tr>
+                                                        <th width="40">Use</th>
+                                                        <th>Source</th>
+                                                        <th width="34%">Last result <span class="muted">(time)</span></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="presetRows"></tbody>
+                                            </table>
                                         </div>
+                                    </div>
 
-                                        <table class="table table-condensed">
-                                            <tr>
-                                                <th>Extra source URLs <span class="muted">(one per line)</span></th>
-                                            </tr>
-                                            <tr>
-                                                <td>
-                                                    <textarea rows="4" wrap="off" spellcheck="false" maxlength="8192" class="span12"
-                                                              name="adblock_extra_sources" placeholder="https://example.com/hosts.txt"
-                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_extra_sources",""); %></textarea>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>Per-source status <span class="muted">(last update)</span></th>
-                                            </tr>
-                                            <tr>
-                                                <td>
-                                                    <textarea rows="7" wrap="off" readonly class="span12"
-                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_source_status",""); %></textarea>
-                                                </td>
-                                            </tr>
-                                        </table>
+                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
+                                        <div class="clearfix">
+                                            <h4 class="pull-left" style="margin-top: 0;">Extra source URLs</h4>
+                                            <div class="pull-right">
+                                                <button type="button" class="btn btn-mini" onclick="addExtraSource('');"><i class="icon-plus"></i> Add source</button>
+                                            </div>
+                                        </div>
+                                        <p class="muted">These rows are for links to <strong>hosts/blocklist files</strong>, not websites you want to block. Add a row, paste the list URL, then press <strong>Apply</strong>. To block a site, add its domain under <strong>Custom blocked domains</strong> below. <strong>Remove</strong> deletes the row and saves immediately.</p>
+                                        <div id="extraSourcesList"></div>
                                     </div>
 
                                     <div class="well" style="margin: 0 10px 10px; padding: 12px;">
@@ -432,7 +790,7 @@ function done_validating(action) {
                                                 <td>
                                                     <textarea rows="5" wrap="off" spellcheck="false" maxlength="16384" class="span12"
                                                               name="adblock_custom" placeholder="example.com"
-                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_custom",""); %></textarea>
+                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_get_x("", "adblock_custom"); %></textarea>
                                                 </td>
                                             </tr>
                                             <tr>
@@ -442,7 +800,7 @@ function done_validating(action) {
                                                 <td>
                                                     <textarea rows="5" wrap="off" spellcheck="false" maxlength="16384" class="span12"
                                                               name="adblock_allow" placeholder="example.com"
-                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_allow",""); %></textarea>
+                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_get_x("", "adblock_allow"); %></textarea>
                                                 </td>
                                             </tr>
                                         </table>
@@ -450,62 +808,14 @@ function done_validating(action) {
 
                                     <div class="row-fluid" style="margin: 0 10px 20px;">
                                         <div class="span12" style="text-align: center;">
-                                            <button type="button" class="btn btn-primary" onclick="applyRule();"><i class="icon-ok icon-white"></i> Apply</button>
-                                            <button type="button" class="btn" onclick="updateNow();"><i class="icon-refresh"></i> Update now</button>
+                                            <button type="button" class="btn btn-primary" onclick="saveSettings();"><i class="icon-ok icon-white"></i> Save settings</button>
+                                            <button type="button" class="btn" onclick="updateNow();"><i class="icon-refresh"></i> Update list</button>
                                             <button type="button" class="btn" onclick="resetDefaults();"><i class="icon-repeat"></i> Restore defaults</button>
+                                            <a class="btn" href="Advanced_Adblock_Diagnostics.asp"><i class="icon-list-alt"></i> Diagnostics</a>
                                         </div>
                                     </div>
 
-                                    <h3 style="margin-left: 10px;">Diagnostics</h3>
-                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
-                                        <table class="table table-condensed" style="margin-bottom: 0;">
-                                            <tr>
-                                                <th width="30%">Test domain</th>
-                                                <td>
-                                                    <input type="text" class="input" name="adblock_test_domain"
-                                                           value="<% nvram_get("adblock_test_domain"); %>" size="32" placeholder="example.com">
-                                                    <button type="button" class="btn" onclick="testDomain();"><i class="icon-search"></i> Test</button>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>Test result</th>
-                                                <td>
-                                                    <textarea rows="5" wrap="off" readonly class="span12"
-                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_test_result",""); %></textarea>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>Update log</th>
-                                                <td>
-                                                    <button type="button" class="btn" onclick="viewLog();"><i class="icon-list-alt"></i> Show last 30 lines</button>
-                                                    <textarea rows="6" wrap="off" readonly class="span12" style="margin-top: 6px; resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_update_log",""); %></textarea>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>Blocked queries</th>
-                                                <td>
-                                                    <button type="button" class="btn" onclick="refreshStats();"><i class="icon-refresh"></i> Refresh stats</button>
-                                                    <textarea rows="7" wrap="off" readonly class="span12" style="margin-top: 6px; resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_stats",""); %></textarea>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>Settings export</th>
-                                                <td>
-                                                    <button type="button" class="btn" onclick="exportSettings();"><i class="icon-download-alt"></i> Export</button>
-                                                    <textarea rows="7" wrap="off" readonly class="span12" style="margin-top: 6px; resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_export",""); %></textarea>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <th>Settings import</th>
-                                                <td>
-                                                    <textarea rows="7" wrap="off" spellcheck="false" class="span12"
-                                                              name="adblock_import" placeholder="Paste an exported settings block here"
-                                                              style="resize: vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("adblock_import",""); %></textarea>
-                                                    <button type="button" class="btn" style="margin-top: 6px;" onclick="importSettings();"><i class="icon-upload"></i> Import</button>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </div>
+
                                 </div>
                             </div>
                         </div>

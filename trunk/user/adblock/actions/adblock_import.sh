@@ -22,4 +22,4 @@ for sec in presets extra custom allow interval update_hour update_min enable; do
     nvram set "$var"="$VAL"
 done
 nvram commit
-/tmp/adblock_apply.sh
+/usr/sbin/adblock/save.sh

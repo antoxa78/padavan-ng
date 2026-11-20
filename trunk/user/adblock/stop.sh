@@ -21,5 +21,7 @@ else
     fi
 fi
 nvram set adblock_status="disabled"
+nvram set adblock_phase=disabled
+nvram set adblock_progress=""
 nvram commit
 logger -t adblock "stopped"

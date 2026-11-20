@@ -9,4 +9,4 @@ nvram set adblock_update_hour=4
 nvram set adblock_update_min=15
 nvram set adblock_enable=1
 nvram commit
-/tmp/adblock_apply.sh
+/usr/sbin/adblock/save.sh

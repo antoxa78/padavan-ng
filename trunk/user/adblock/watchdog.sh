@@ -4,6 +4,11 @@ DIR=/etc/storage/adblock
 WORK=/tmp/adblock
 PID=/var/run/adblock-dnsmasq.pid
 
+# Flush the query log into the daily statistics table once a minute.
+if [ "$(nvram get adblock_enable)" != "0" ]; then
+    "$BIN/stats_collect.sh" >/dev/null 2>&1
+fi
+
 for L in update.lock start.lock; do
     if [ -f "$WORK/$L" ] && kill -0 "$(cat "$WORK/$L")" 2>/dev/null; then
         exit 0
