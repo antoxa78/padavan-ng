@@ -31,11 +31,16 @@ else
 fi
 
 T0=$(cut -d' ' -f1 /proc/uptime)
-if timeout 3 nslookup example.com 127.0.0.1 >/dev/null 2>&1; then
-    DNS_STATE="ok"
-else
-    DNS_STATE="failed"
-fi
+DNS_STATE="failed"
+i=0
+while [ "$i" -lt 2 ]; do
+    if timeout 5 nslookup example.com 127.0.0.1 >/dev/null 2>&1; then
+        DNS_STATE="ok"
+        break
+    fi
+    i=$((i + 1))
+    [ "$i" -lt 2 ] && sleep 2
+done
 T1=$(cut -d' ' -f1 /proc/uptime)
 DNS_MS=$(awk -v a="$T0" -v b="$T1" 'BEGIN { printf "%.0f", (b-a)*1000 }')
 
