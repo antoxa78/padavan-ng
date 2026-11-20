@@ -46,8 +46,8 @@ fi
 mv "$TMP" "$DIR/sources.conf"
 
 CUSTOM=$(nvram get adblock_custom)
-# Drop HTML metacharacters so the textarea cannot be broken by stored rules.
-CUSTOM=$(printf '%s\n' "$CUSTOM" | tr -d '<>')
+# Drop HTML metacharacters and blank lines so repeated saves are byte-stable.
+CUSTOM=$(printf '%s\n' "$CUSTOM" | tr -d '<>' | sed '/^[[:space:]]*$/d')
 nvram set adblock_custom="$CUSTOM"
 printf '%s\n' "$CUSTOM" > "$DIR/custom.hosts.new"
 mv "$DIR/custom.hosts.new" "$DIR/custom.hosts"
@@ -56,7 +56,7 @@ ALLOW=$(nvram get adblock_allow)
 if [ -z "$ALLOW" ]; then
     ALLOW='# no allowlist'
 fi
-ALLOW=$(printf '%s\n' "$ALLOW" | tr -d '<>')
+ALLOW=$(printf '%s\n' "$ALLOW" | tr -d '<>' | sed '/^[[:space:]]*$/d')
 nvram set adblock_allow="$ALLOW"
 printf '%s\n' "$ALLOW" > "$DIR/custom.allow.new"
 mv "$DIR/custom.allow.new" "$DIR/custom.allow"
