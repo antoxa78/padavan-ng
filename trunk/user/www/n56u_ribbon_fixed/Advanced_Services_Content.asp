@@ -209,6 +209,30 @@ function create_server_cert() {
 	});
 }
 
+function saveCACert() {
+	var ta = document.form['httpssl.ca.crt'];
+	if (!ta || !ta.value.trim()) {
+		alert('No CA certificate is stored yet. Generate or paste one first.');
+		return;
+	}
+	if (!window.Blob || !window.URL || !window.URL.createObjectURL) {
+		alert('This browser does not support file downloads.');
+		return;
+	}
+	var blob = new Blob([ta.value], { type: 'application/x-x509-ca-cert' });
+	var url = URL.createObjectURL(blob);
+	var a = document.createElement('a');
+	a.href = url;
+	a.download = 'router-ca.crt';
+	document.body.appendChild(a);
+	a.click();
+	setTimeout(function() {
+		if (a.parentNode)
+			a.parentNode.removeChild(a);
+		URL.revokeObjectURL(url);
+	}, 1000);
+}
+
 function sshd_auth_change(){
 	var auth = document.form.sshd_enable.value;
 	var v = (auth != "0") ? 1 : 0;
@@ -375,6 +399,10 @@ function change_crond_enabled(){
                                                 <div id="ca.crt" style="display:none;">
                                                     <textarea rows="8" wrap="off" spellcheck="false" maxlength="8192" class="span12" name="httpssl.ca.crt" style="resize:vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("httpssl.ca.crt",""); %></textarea>
                                                 </div>
+                                                <div style="margin-top: 6px;">
+                                                    <button type="button" class="btn btn-primary" onclick="saveCACert();"><i class="icon-download icon-white"></i> Save CA certificate</button>
+                                                    <span class="muted">Downloads <code>router-ca.crt</code></span>
+                                                </div>
                                             </td>
                                         </tr>
                                         <tr>
@@ -398,6 +426,23 @@ function change_crond_enabled(){
                                                 <a href="javascript:spoiler_toggle('server.key')"><span>Server Private Key (required)</span></a>
                                                 <div id="server.key" style="display:none;">
                                                     <textarea rows="8" wrap="off" spellcheck="false" maxlength="8192" class="span12" name="httpssl.server.key" style="resize:vertical; font-family:'Courier New'; font-size:12px;"><% nvram_dump("httpssl.server.key",""); %></textarea>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td colspan="4">
+                                                <div class="alert alert-info" style="margin-bottom: 0;">
+                                                    <strong>How to use the CA certificate</strong><br>
+                                                    Download <code>router-ca.crt</code>, then install it as a trusted root CA on the devices that should trust this router's HTTPS page.
+                                                    <ul style="margin: 6px 0 0 18px;">
+                                                        <li><strong>Windows:</strong> double-click the file &rarr; Install Certificate &rarr; Local Machine &rarr; Place all certificates in <em>Trusted Root Certification Authorities</em>.</li>
+                                                        <li><strong>Linux:</strong> <code>sudo cp router-ca.crt /usr/local/share/ca-certificates/ &amp;&amp; sudo update-ca-certificates</code>.</li>
+                                                        <li><strong>Android:</strong> Settings &rarr; Security &rarr; Encryption &amp; credentials &rarr; Install a certificate &rarr; CA certificate.</li>
+                                                        <li><strong>iOS/iPadOS:</strong> install the profile, then Settings &rarr; General &rarr; About &rarr; Certificate Trust Settings &rarr; enable full trust.</li>
+                                                        <li><strong>Firefox:</strong> Settings &rarr; Privacy &amp; Security &rarr; Certificates &rarr; View Certificates &rarr; Authorities &rarr; Import.</li>
+                                                    </ul>
+                                                    Use <code>https://my.router</code> (add <code>192.168.31.10 my.router</code> to the device's hosts file) so the certificate name matches.
+                                                    The certificate is self-signed; only install it on devices you control. If you regenerate it, install the new CA again.
                                                 </div>
                                             </td>
                                         </tr>
