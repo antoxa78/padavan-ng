@@ -139,6 +139,13 @@ function initRebootDays() {
 		var cb = document.getElementById('reboot_day_' + i);
 		if (cb) cb.checked = (mask & (1 << i)) !== 0;
 	}
+	var timeEl = document.getElementById('reboot_sched_time');
+	if (timeEl) {
+		timeEl.value = timeEl.value.replace(/^\s+|\s+$/g, '');
+		var tm = /^([0-9]):([0-5][0-9])$/.exec(timeEl.value);
+		if (tm)
+			timeEl.value = '0' + tm[1] + ':' + tm[2];
+	}
 	updateRebootSchedule();
 }
 
