@@ -1,6 +1,5 @@
 #!/bin/sh
 # Build the health dashboard and the recent-blocked list for the Diagnostics page.
-BIN=$(cd "$(dirname "$0")" && pwd)
 DIR=/etc/storage/adblock
 WORK=/tmp/adblock
 RECENT=$WORK/recent.tsv
@@ -32,7 +31,7 @@ else
 fi
 
 T0=$(cut -d' ' -f1 /proc/uptime)
-if nslookup example.com 127.0.0.1 >/dev/null 2>&1; then
+if timeout 3 nslookup example.com 127.0.0.1 >/dev/null 2>&1; then
     DNS_STATE="ok"
 else
     DNS_STATE="failed"
@@ -45,7 +44,7 @@ GW=$(ip route 2>/dev/null | awk '/^default / {
         if ($i == "via") { print $(i + 1); exit }
 }')
 if [ -n "$GW" ]; then
-    PING=$(ping -c 3 -W 1 -q "$GW" 2>/dev/null |
+    PING=$(ping -c 2 -W 1 -q "$GW" 2>/dev/null |
         sed -n 's|.*min/avg/max = [^/]*/\([^/]*\)/.*|\1|p')
     [ -z "$PING" ] && PING="unreachable"
 else

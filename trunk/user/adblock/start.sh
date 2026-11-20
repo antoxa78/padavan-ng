@@ -38,7 +38,7 @@ echo "nameserver $GW" > "$DIR/resolv.conf"
 
 # Action scripts used by the web UI.  Copy to a temporary name and rename so a
 # script that is currently executing is never truncated underneath itself.
-for a in adblock_apply.sh adblock_save.sh adblock_update.sh adblock_reset.sh adblock_test.sh adblock_log.sh adblock_stats.sh adblock_export.sh adblock_import.sh adblock_pause.sh adblock_resume.sh adblock_allow.sh adblock_health.sh wifi_sched_override.sh reboot_schedule.sh; do
+for a in adblock_save.sh adblock_update.sh adblock_reset.sh adblock_test.sh adblock_log.sh adblock_stats.sh adblock_export.sh adblock_import.sh adblock_pause.sh adblock_resume.sh adblock_allow.sh adblock_health.sh wifi_sched_override.sh reboot_schedule.sh; do
     if [ -f "$BIN/actions/$a" ]; then
         cp "$BIN/actions/$a" "/tmp/$a.new" && mv "/tmp/$a.new" "/tmp/$a"
         chmod 755 "/tmp/$a"

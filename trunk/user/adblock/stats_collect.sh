@@ -2,7 +2,6 @@
 # Aggregate blocked-query counts into a small persistent daily table.
 # The live dnsmasq log is truncated after each pass; the table is kept in
 # /tmp and copied to /etc/storage every 15 minutes (or on manual refresh).
-BIN=$(cd "$(dirname "$0")" && pwd)
 DIR=/etc/storage/adblock
 WORK=/tmp/adblock
 LOG=/tmp/adblock-queries.log
@@ -31,7 +30,7 @@ trap 'rm -f "$LOCK"' EXIT
 
 TODAY=$(date '+%Y-%m-%d')
 MONTH=$(date '+%Y-%m')
-TOP=""
+TOP=$(nvram get adblock_top)
 
 if [ -s "$LOG" ]; then
     BLOCKED_DOMAINS=$(grep -E ' is (0\.0\.0\.0|::1)$' "$LOG" 2>/dev/null |
@@ -41,12 +40,25 @@ if [ -s "$LOG" ]; then
     [ -z "$BLOCKED" ] && BLOCKED=0
     [ -z "$TOTAL" ] && TOTAL=0
     if [ "$BLOCKED" -gt 0 ]; then
-        TOP=$(printf '%s\n' "$BLOCKED_DOMAINS" | sort | uniq -c | sort -nr | head -10)
+        # The top list is expensive to sort; refresh it every ~15 passes
+        # (or immediately on a manual stats refresh) and reuse the rest.
+        TOP_TICK=0
+        if [ -f "$WORK/top.tick" ]; then
+            TOP_TICK=$(cat "$WORK/top.tick" 2>/dev/null)
+            case "$TOP_TICK" in ''|*[!0-9]*) TOP_TICK=0;; esac
+        fi
+        if [ "$SYNC" = "1" ] || [ "$TOP_TICK" -ge 15 ] || [ ! -f "$WORK/top.tick" ]; then
+            TOP=$(printf '%s\n' "$BLOCKED_DOMAINS" | sort | uniq -c | sort -nr | head -10)
+            nvram set adblock_top="$TOP"
+            TOP_TICK=0
+        fi
+        echo $((TOP_TICK + 1)) > "$WORK/top.tick"
         NOW=$(date +%s)
-        printf '%s\n' "$BLOCKED_DOMAINS" | sed "s/^/$NOW\t/" >> "$RECENT"
+        printf '%s\n' "$BLOCKED_DOMAINS" | tail -n 500 | sed "s/^/$NOW\t/" >> "$RECENT"
         tail -n 500 "$RECENT" > "$RECENT.tmp" && mv "$RECENT.tmp" "$RECENT"
-    else
+    elif [ "$SYNC" = "1" ]; then
         TOP=""
+        nvram set adblock_top=""
     fi
 
     if [ "$TOTAL" -gt 0 ] || [ "$BLOCKED" -gt 0 ]; then
@@ -80,7 +92,7 @@ nvram set adblock_stats="Blocked queries
   this month: $MONTH_BLOCKED
   all time: $ALL_BLOCKED
 
-Top blocked domains (last window):
+Top blocked domains (last sample):
 $TOP"
 
 # Persist the daily table every 15 minutes, or immediately on manual refresh.

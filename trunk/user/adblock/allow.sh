@@ -92,7 +92,7 @@ if [ "$LIST_ERROR" = "0" ]; then
                 grep -vE "$FILTER" "$WORK/hosts.paused" > "$WORK/hosts.paused.new"
                 rc=$?
                 if [ "$rc" -le 1 ] &&
-                        gzip -9 -c "$WORK/hosts.paused.new" > "$DIR/hosts.gz.new" 2>/dev/null; then
+                        gzip -6 -c "$WORK/hosts.paused.new" > "$DIR/hosts.gz.new" 2>/dev/null; then
                     chmod 644 "$DIR/hosts.gz.new"
                     mv "$DIR/hosts.gz.new" "$DIR/hosts.gz"
                 else
@@ -104,7 +104,7 @@ if [ "$LIST_ERROR" = "0" ]; then
             rm -f "$WORK/hosts.paused" "$WORK/hosts.paused.new" "$DIR/hosts.gz.new"
         fi
     elif [ "$LIVE_HAD_LINES" = "1" ] || [ -s "$WORK/hosts.v4" ]; then
-        gzip -9 -c "$WORK/hosts.v4" > "$DIR/hosts.gz.new" 2>/dev/null &&
+        gzip -6 -c "$WORK/hosts.v4" > "$DIR/hosts.gz.new" 2>/dev/null &&
             chmod 644 "$DIR/hosts.gz.new" &&
             mv "$DIR/hosts.gz.new" "$DIR/hosts.gz"
         rm -f "$DIR/hosts.gz.new"

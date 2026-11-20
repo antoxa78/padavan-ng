@@ -10,6 +10,8 @@ clean:
 
 romfs:
 	mkdir -p $(INSTALLDIR)/usr/sbin/adblock
+	rm -f $(INSTALLDIR)/usr/sbin/adblock/rollback.sh \
+	      $(INSTALLDIR)/usr/sbin/adblock/actions/adblock_apply.sh
 	$(ROMFSINST) /usr/sbin/adblock/start.sh
 	$(ROMFSINST) -p +x /usr/sbin/adblock/save.sh
 	$(ROMFSINST) /usr/sbin/adblock/update.sh
@@ -20,7 +22,6 @@ romfs:
 	$(ROMFSINST) /usr/sbin/adblock/allow.sh
 	$(ROMFSINST) /usr/sbin/adblock/restart.sh
 	$(ROMFSINST) /usr/sbin/adblock/stop.sh
-	$(ROMFSINST) /usr/sbin/adblock/rollback.sh
 	$(ROMFSINST) /usr/sbin/adblock/stats.sh
 	$(ROMFSINST) -p +x /usr/sbin/adblock/stats_collect.sh
 	$(ROMFSINST) -d actions /usr/sbin/adblock/actions

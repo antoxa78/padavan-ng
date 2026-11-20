@@ -283,7 +283,7 @@ sed 's/^0\.0\.0\.0 /::1 /' "$WORK/hosts.v4.new" > "$WORK/hosts.v6.new" ||
 chmod 644 "$WORK/hosts.v6.new"
 
 # Keep a compressed copy of the IPv4 list in NAND.
-gzip -9 -c "$WORK/hosts.v4.new" > "$WORK/hosts.gz.new" ||
+gzip -6 -c "$WORK/hosts.v4.new" > "$WORK/hosts.gz.new" ||
     fail_update "update failed: gzip error"
 gzip -t "$WORK/hosts.gz.new" ||
     fail_update "update failed: gzip test error"
