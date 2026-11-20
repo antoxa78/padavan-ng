@@ -44,7 +44,7 @@
 <% login_state_hook(); %>
 
 var presetMask = parseInt('<% nvram_get_x("", "adblock_presets"); %>');
-if (isNaN(presetMask)) presetMask = 127;
+if (isNaN(presetMask)) presetMask = 52;
 var currentPhase = '<% nvram_get_x("", "adblock_phase"); %>';
 var configDirty = '<% nvram_get_x("", "adblock_config_dirty"); %>' === '1';
 var pauseUntil = parseInt('<% nvram_get_x("", "adblock_pause_until"); %>', 10);
@@ -314,7 +314,7 @@ function setPresets(mask) {
 }
 
 function defaultPresets() {
-    setPresets(127);
+    setPresets(52);
 }
 
 function clearPresets() {

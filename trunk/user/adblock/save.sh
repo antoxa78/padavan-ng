@@ -9,7 +9,7 @@ PRESETS=$BIN/defaults/presets.conf
 mkdir -p "$DIR"
 
 MASK=$(nvram get adblock_presets)
-case "$MASK" in ''|*[!0-9]*) MASK=127;; esac
+case "$MASK" in ''|*[!0-9]*) MASK=52;; esac
 
 TMP=$DIR/sources.conf.new
 : > "$TMP"
@@ -40,7 +40,7 @@ fi
 # fall back to the shipped defaults instead of silently downloading nothing.
 if [ ! -s "$TMP" ] && [ "$MASK" -ne 0 ]; then
     cp "$BIN/defaults/sources.conf" "$TMP"
-    nvram set adblock_presets=127
+    nvram set adblock_presets=52
 fi
 
 mv "$TMP" "$DIR/sources.conf"

@@ -50,7 +50,7 @@ done
 [ -z "$(nvram get adblock_interval)" ] && nvram set adblock_interval=weekly
 [ -z "$(nvram get adblock_update_hour)" ] && nvram set adblock_update_hour=4
 [ -z "$(nvram get adblock_update_min)" ] && nvram set adblock_update_min=15
-[ -z "$(nvram get adblock_presets)" ] && nvram set adblock_presets=127
+[ -z "$(nvram get adblock_presets)" ] && nvram set adblock_presets=52
 [ -z "$(nvram get adblock_extra_sources)" ] && nvram set adblock_extra_sources=""
 [ -z "$(nvram get adblock_sources)" ] && nvram set adblock_sources="$(cat "$DIR/sources.conf")"
 [ -z "$(nvram get adblock_custom)" ] && nvram set adblock_custom="$(cat "$DIR/custom.hosts")"
