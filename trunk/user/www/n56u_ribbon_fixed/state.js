@@ -284,7 +284,7 @@ function show_banner(L3){
 
 	// block system info
 	bc += '<div class="span6">\n';
-	bc += '<div class="well" style="margin-bottom: 0px; height: 109px; padding: 7px 6px 6px 6px;">\n';
+	bc += '<div class="well" style="margin-bottom: 0px; min-height: 129px; padding: 7px 6px 6px 6px;">\n';
 	bc += '<div class="row-fluid">\n';
 
 	bc += '<div id="main_info">\n';
@@ -356,7 +356,7 @@ function show_banner(L3){
 
 	// block firmware version
 	bc += '<div class="span6">\n';
-	bc += '<div class="well" style="margin-bottom: 0px; height: 109px; padding: 5px 6px 8px 6px;">\n';
+	bc += '<div class="well" style="margin-bottom: 0px; min-height: 129px; padding: 5px 6px 8px 6px;">\n';
 	bc += '<div class="row-fluid">\n';
 	bc += '<table class="table table-condensed" style="margin-bottom: 0px">\n';
 	bc += '  <tr>\n';
@@ -372,8 +372,8 @@ function show_banner(L3){
 	bc += '    <td><a href="/Advanced_FirmwareUpgrade_Content.asp"><span id="firmver" class="time"></span></a></td>\n';
 	bc += '  </tr>\n';
 	bc += '  <tr>\n';
-	bc += '    <td><button type="button" id="commit_btn" class="btn btn-mini" style="width: 114px; height: 21px; outline:0; '+enabledBtnCommit+'" onclick="commit();"><i class="icon icon-fire"></i>&nbsp;<#CTL_Commit#></button></td>\n';
-	bc += '    <td><button type="button" id="logout_btn" class="btn btn-mini" style="width: 114px; height: 21px; outline:0;" onclick="logout();"><#t1Logout#></button> <button type="button" id="reboto_btn" class="btn btn-mini" style="height: 21px; outline:0;" title="<#BTN_REBOOT#>" onclick="reboot();"><i class="icon icon-off"></i></button></td>\n';
+	bc += '    <td><button type="button" id="commit_btn" class="btn btn-mini" style="width: 90px; height: 21px; outline:0; '+enabledBtnCommit+'" onclick="commit();"><i class="icon icon-fire"></i>&nbsp;<#CTL_Commit#></button></td>\n';
+	bc += '    <td style="white-space: nowrap;"><button type="button" id="logout_btn" class="btn btn-mini" style="width: 90px; height: 21px; outline:0;" onclick="logout();"><#t1Logout#></button> <button type="button" id="reboto_btn" class="btn btn-mini" style="height: 21px; outline:0;" title="<#BTN_REBOOT#>" onclick="reboot();"><i class="icon icon-off"></i></button></td>\n';
 	bc += '  </tr>\n';
 	bc += '</table>\n';
 	bc += '</div>\n';
