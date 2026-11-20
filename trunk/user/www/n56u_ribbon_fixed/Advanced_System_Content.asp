@@ -148,26 +148,66 @@ function rebootDayChanged() {
 	updateRebootSchedule();
 }
 
+function rebootEscape(s) {
+	return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function nextRebootText(time, mask) {
+	var m = /^([01]?[0-9]|2[0-3]):([0-5][0-9])$/.exec(time);
+	if (!m)
+		return '';
+	var h = parseInt(m[1], 10);
+	var min = parseInt(m[2], 10);
+	var now = new Date();
+	for (var i = 0; i < 8; i++) {
+		var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i, h, min, 0, 0);
+		if (d.getTime() <= now.getTime())
+			continue;
+		if (mask & (1 << d.getDay()))
+			return rebootDayNames[d.getDay()] + ' ' + d.getDate() + '/' + (d.getMonth() + 1) +
+			       ' ' + (h < 10 ? '0' : '') + h + ':' + (min < 10 ? '0' : '') + min;
+	}
+	return '';
+}
+
 function updateRebootSchedule() {
 	var el = document.getElementById('rebootScheduleStatus');
-	if (!el) return;
+	var badge = document.getElementById('rebootScheduleBadge');
 	var enable = document.getElementById('reboot_sched_enable').value;
 	var time = document.getElementById('reboot_sched_time').value;
 	var mask = rebootMask();
+
+	if (badge) {
+		if (enable !== '1') {
+			badge.className = 'label';
+			badge.innerHTML = 'Disabled';
+		} else if (!mask) {
+			badge.className = 'label label-important';
+			badge.innerHTML = 'No days';
+		} else {
+			badge.className = 'label label-success';
+			badge.innerHTML = 'Scheduled';
+		}
+	}
+	if (!el)
+		return;
 	if (enable !== '1') {
 		el.innerHTML = 'Scheduled reboot is disabled.';
 		return;
 	}
 	if (!mask) {
-		el.innerHTML = '<span class="label label-important">No days selected</span> No reboot will run.';
+		el.innerHTML = 'Select at least one day; no reboot will run.';
 		return;
 	}
 	var names = [];
 	for (var i = 0; i < 7; i++) {
-		if (mask & (1 << i)) names.push(rebootDayNames[i]);
+		if (mask & (1 << i))
+			names.push(rebootDayNames[i]);
 	}
-	el.innerHTML = '<span class="label label-info">Scheduled</span> Reboots at <strong>' +
-	               time + '</strong> on ' + names.join(', ') + '.';
+	var next = nextRebootText(time, mask);
+	el.innerHTML = 'Reboots at <strong>' + rebootEscape(time) + '</strong> on ' +
+	               names.join(', ') + '.' +
+	               (next ? ' Next: <strong>' + rebootEscape(next) + '</strong>.' : '');
 }
 
 function saveRebootSchedule() {
@@ -246,6 +286,10 @@ function ntpSyncNow(){
 <style>
     .table th, .table td{vertical-align: middle;}
     .table input, .table select {margin-bottom: 0px;}
+    .reboot-panel .input-append { margin-bottom: 0; }
+    .reboot-panel .input-append input { margin-bottom: 0; }
+    .reboot-panel .checkbox.inline { margin-right: 12px; }
+    .reboot-panel .row-fluid [class*="span"] { margin-bottom: 8px; }
 </style>
 </head>
 
@@ -525,48 +569,48 @@ function ntpSyncNow(){
                                         </tr>
                                     </table>
 
-                                    <table class="table">
-                                        <tr>
-                                            <th colspan="2" style="background-color: #E3E3E3;">Scheduled reboot</th>
-                                        </tr>
-                                        <tr>
-                                            <th width="50%">Enable scheduled reboot</th>
-                                            <td>
-                                                <select id="reboot_sched_enable" class="input" onchange="updateRebootSchedule();">
+                                    <div class="well reboot-panel" style="margin: 0 10px 10px; padding: 12px;">
+                                        <div class="clearfix">
+                                            <h4 class="pull-left" style="margin-top: 0;"><i class="icon-time"></i> Scheduled reboot</h4>
+                                            <span id="rebootScheduleBadge" class="label pull-right">Disabled</span>
+                                        </div>
+                                        <p class="muted">Reboot the router automatically at a fixed time. All connections drop briefly during the reboot.</p>
+                                        <div class="row-fluid">
+                                            <div class="span3">
+                                                <label class="caption-bold" for="reboot_sched_enable">Mode</label>
+                                                <select id="reboot_sched_enable" class="input-block-level" onchange="updateRebootSchedule();">
                                                     <option value="0" <% nvram_match_x("", "reboot_sched_enable", "0", "selected"); %>>Disabled</option>
                                                     <option value="1" <% nvram_match_x("", "reboot_sched_enable", "1", "selected"); %>>Enabled</option>
                                                 </select>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Reboot time</th>
-                                            <td>
-                                                <input id="reboot_sched_time" type="text" class="input-mini" maxlength="5"
-                                                       value="<% nvram_get_x("", "reboot_sched_time"); %>"
-                                                       placeholder="04:30" onkeyup="updateRebootSchedule();" onchange="updateRebootSchedule();">
-                                                <span class="help-inline">24-hour clock (HH:MM)</span>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Days</th>
-                                            <td>
-                                                <input type="hidden" id="reboot_sched_days" value="<% nvram_get_x("", "reboot_sched_days"); %>">
-                                                <label class="checkbox inline"><input type="checkbox" id="reboot_day_0" onchange="rebootDayChanged();"> Sun</label>
-                                                <label class="checkbox inline"><input type="checkbox" id="reboot_day_1" onchange="rebootDayChanged();"> Mon</label>
-                                                <label class="checkbox inline"><input type="checkbox" id="reboot_day_2" onchange="rebootDayChanged();"> Tue</label>
-                                                <label class="checkbox inline"><input type="checkbox" id="reboot_day_3" onchange="rebootDayChanged();"> Wed</label>
-                                                <label class="checkbox inline"><input type="checkbox" id="reboot_day_4" onchange="rebootDayChanged();"> Thu</label>
-                                                <label class="checkbox inline"><input type="checkbox" id="reboot_day_5" onchange="rebootDayChanged();"> Fri</label>
-                                                <label class="checkbox inline"><input type="checkbox" id="reboot_day_6" onchange="rebootDayChanged();"> Sat</label>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td colspan="2">
-                                                <button type="button" class="btn" onclick="saveRebootSchedule();"><i class="icon-time"></i> Save reboot schedule</button>
-                                                <span class="help-inline" id="rebootScheduleStatus"></span>
-                                            </td>
-                                        </tr>
-                                    </table>
+                                            </div>
+                                            <div class="span3">
+                                                <label class="caption-bold" for="reboot_sched_time">Time</label>
+                                                <div class="input-append">
+                                                    <input id="reboot_sched_time" type="text" class="input-mini" maxlength="5"
+                                                           value="<% nvram_get_x("", "reboot_sched_time"); %>"
+                                                           placeholder="04:30" onkeyup="updateRebootSchedule();" onchange="updateRebootSchedule();">
+                                                    <span class="add-on">24h</span>
+                                                </div>
+                                            </div>
+                                            <div class="span6">
+                                                <label class="caption-bold">Days</label>
+                                                <div>
+                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_0" onchange="rebootDayChanged();"> Sun</label>
+                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_1" onchange="rebootDayChanged();"> Mon</label>
+                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_2" onchange="rebootDayChanged();"> Tue</label>
+                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_3" onchange="rebootDayChanged();"> Wed</label>
+                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_4" onchange="rebootDayChanged();"> Thu</label>
+                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_5" onchange="rebootDayChanged();"> Fri</label>
+                                                    <label class="checkbox inline"><input type="checkbox" id="reboot_day_6" onchange="rebootDayChanged();"> Sat</label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <input type="hidden" id="reboot_sched_days" value="<% nvram_get_x("", "reboot_sched_days"); %>">
+                                        <div style="margin-top: 10px;">
+                                            <button type="button" class="btn btn-primary" onclick="saveRebootSchedule();"><i class="icon-ok icon-white"></i> Save reboot schedule</button>
+                                        </div>
+                                        <div class="muted" id="rebootScheduleStatus" style="margin-top: 6px;"></div>
+                                    </div>
 
                                     <table class="table">
                                         <tr>

@@ -19,6 +19,10 @@
     .adblock-extra-row input { width: 68%; }
     .adblock-extra-row .extra-status { margin-left: 8px; font-size: 12px; }
     .adblock-status-line { margin-top: 6px; }
+    .adblock-pause-row { display: flex; align-items: center; flex-wrap: wrap; }
+    .adblock-pause-row label { margin: 0 8px 0 0; font-weight: 600; }
+    .adblock-pause-row select { width: auto; margin: 0 10px 0 0; }
+    .adblock-pause-row .btn { margin: 0; }
     @media (max-width: 1000px) {
         .wrapper { width: auto; max-width: 100%; min-width: 0; }
     }
@@ -605,8 +609,11 @@ function updatePauseState() {
     if (paused) paused.style.display = active ? '' : 'none';
     if (badge) {
         badge.className = 'label ' + (active ? 'label-warning' : 'label-success');
-        badge.innerHTML = active ? 'Paused' : 'Active';
+        badge.innerHTML = active ? 'Paused' : 'Filtering on';
     }
+    var idleText = document.getElementById('pauseIdleText');
+    if (idleText && !active)
+        idleText.innerHTML = 'Filtering is active. No pause scheduled.';
     var until = document.getElementById('pauseUntilText');
     if (until && active)
         until.innerHTML = 'Paused until <strong>' + pauseTimeText() + '</strong>. DNS filtering is off until then.';
@@ -877,24 +884,28 @@ function done_validating(action) {
                                     <div class="well" style="margin: 0 10px 10px; padding: 12px;">
                                         <div class="clearfix">
                                             <h4 class="pull-left" style="margin-top: 0;">Pause filtering</h4>
-                                            <span id="pauseBadge" class="label pull-right">Active</span>
+                                            <span id="pauseBadge" class="label pull-right">Filtering on</span>
                                         </div>
                                         <div id="pauseIdle">
-                                            <p class="muted">Temporarily stop blocking ads without disabling the resolver. Filtering resumes automatically when the pause expires.</p>
-                                            <select id="adblock_pause_minutes" name="adblock_pause_minutes" class="input">
-                                                <option value="15">15 minutes</option>
-                                                <option value="30">30 minutes</option>
-                                                <option value="60" selected>1 hour</option>
-                                                <option value="120">2 hours</option>
-                                                <option value="240">4 hours</option>
-                                                <option value="480">8 hours</option>
-                                                <option value="1440">24 hours</option>
-                                            </select>
-                                            <button type="button" class="btn btn-warning" onclick="pauseAdblock();"><i class="icon-pause"></i> Pause</button>
+                                            <p class="muted" id="pauseIdleText" style="margin-bottom: 8px;">Filtering is active. No pause scheduled.</p>
+                                            <div class="adblock-pause-row">
+                                                <label for="adblock_pause_minutes">Pause for</label>
+                                                <select id="adblock_pause_minutes" name="adblock_pause_minutes" class="input">
+                                                    <option value="15">15 minutes</option>
+                                                    <option value="30">30 minutes</option>
+                                                    <option value="60" selected>1 hour</option>
+                                                    <option value="120">2 hours</option>
+                                                    <option value="240">4 hours</option>
+                                                    <option value="480">8 hours</option>
+                                                    <option value="1440">24 hours</option>
+                                                </select>
+                                                <button type="button" class="btn btn-warning" onclick="pauseAdblock();"><i class="icon-pause"></i> Pause filtering</button>
+                                            </div>
+                                            <div class="help-block" style="margin-bottom: 0;">Temporarily stop blocking ads without disabling the resolver. Filtering resumes automatically when the pause expires.</div>
                                         </div>
                                         <div id="pauseActive" style="display:none;">
                                             <p id="pauseUntilText" class="muted"></p>
-                                            <button type="button" class="btn btn-primary" onclick="resumeAdblock();"><i class="icon-play icon-white"></i> Resume now</button>
+                                            <button type="button" class="btn btn-primary" onclick="resumeAdblock();"><i class="icon-play icon-white"></i> Resume filtering now</button>
                                         </div>
                                     </div>
 

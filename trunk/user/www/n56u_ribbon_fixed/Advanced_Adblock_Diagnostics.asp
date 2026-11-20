@@ -13,6 +13,8 @@
 <style>
     .well { box-sizing: border-box; }
     .adblock-status-line { margin-top: 6px; }
+    .recent-domain { font-family: 'Courier New', monospace; word-break: break-all; }
+    #healthRows th { font-weight: 600; }
 </style>
 
 <script type="text/javascript" src="/jquery.js"></script>
@@ -33,6 +35,9 @@ function initial() {
     fixStatusText();
     updateStatusBadge();
     updatePhaseText();
+    renderHealth();
+    renderRecent();
+    maybeRefreshHealth();
 }
 
 function actionComplete() {
@@ -137,6 +142,145 @@ function refreshStats() {
     submitAction('adblock_stats.sh');
 }
 
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g, '&quot;');
+}
+
+function renderHealth() {
+    var data = document.getElementById('healthData');
+    var rows = document.getElementById('healthRows');
+    var badge = document.getElementById('healthBadge');
+    if (!rows)
+        return;
+    var lines = data ? data.value.split('\n') : [];
+    var html = '';
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].replace(/\r$/, '');
+        if (!line)
+            continue;
+        var p = line.split('|');
+        if (p.length < 2)
+            continue;
+        html += '<tr><th width="35%">' + escapeHtml(p[0]) + '</th><td>' +
+                escapeHtml(p.slice(1).join('|')) + '</td></tr>';
+    }
+    rows.innerHTML = html || '<tr><td class="muted">No health data yet. Press Refresh.</td></tr>';
+
+    if (badge) {
+        var state = '<% nvram_get_x("", "adblock_health_state"); %>';
+        if (state === 'ok') {
+            badge.className = 'label label-success';
+            badge.innerHTML = 'Healthy';
+        } else if (state === 'warn') {
+            badge.className = 'label label-warning';
+            badge.innerHTML = 'Warning';
+        } else if (state === 'error') {
+            badge.className = 'label label-important';
+            badge.innerHTML = 'Error';
+        } else {
+            badge.className = 'label';
+            badge.innerHTML = 'Unknown';
+        }
+    }
+}
+
+function ageText(sec) {
+    sec = parseInt(sec, 10);
+    if (isNaN(sec) || sec < 0) sec = 0;
+    if (sec < 60) return sec + 's ago';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+    if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+    return Math.floor(sec / 86400) + 'd ago';
+}
+
+function renderRecent() {
+    var data = document.getElementById('recentData');
+    var rows = document.getElementById('recentRows');
+    var empty = document.getElementById('recentEmpty');
+    if (!rows)
+        return;
+    var lines = data ? data.value.split('\n') : [];
+    var html = '';
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].replace(/\r$/, '');
+        if (!line)
+            continue;
+        var p = line.split('|');
+        if (p.length < 3)
+            continue;
+        var domain = p[1];
+        html += '<tr><td>' + escapeHtml(p[0]) + '</td>' +
+                '<td class="recent-domain">' + escapeHtml(domain) + '</td>' +
+                '<td>' + escapeHtml(ageText(p[2])) + '</td>' +
+                '<td><button type="button" class="btn btn-mini" onclick="allowDomain(\'' +
+                escapeAttr(domain) + '\');"><i class="icon-ok"></i> Allow</button></td></tr>';
+    }
+    rows.innerHTML = html;
+    if (empty)
+        empty.style.display = html ? 'none' : '';
+}
+
+function postAction(script, fields) {
+    if (typeof login_safe === 'function' && !login_safe())
+        return false;
+    if (!window.fetch || !window.URLSearchParams) {
+        alert('This browser cannot run this action. Please use a current browser.');
+        return false;
+    }
+    var body = new URLSearchParams();
+    body.append('action_mode', ' Apply ');
+    body.append('action_script', script);
+    body.append('current_page', 'Advanced_Adblock_Diagnostics.asp');
+    body.append('next_page', '');
+    body.append('sid_list', 'General;');
+    for (var k in fields) {
+        if (Object.prototype.hasOwnProperty.call(fields, k))
+            body.append(k, fields[k]);
+    }
+    showLoading();
+    fetch('/start_apply.htm', {
+        method: 'POST',
+        body: body,
+        credentials: 'same-origin'
+    }).then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        location.reload();
+    }).catch(function() {
+        hideLoading();
+        alert('The action failed. Please retry.');
+    });
+    return true;
+}
+
+function refreshHealth() {
+    postAction('adblock_health.sh', {});
+}
+
+function allowDomain(domain) {
+    if (!confirm('Allow ' + domain + '?\n\n' +
+                 'It will be added to the allowlist and removed from the live blocklist.'))
+        return;
+    postAction('adblock_allow.sh', { adblock_allow_add: domain });
+}
+
+function maybeRefreshHealth() {
+    var data = document.getElementById('healthData');
+    if (!data || data.value.trim())
+        return;
+    try {
+        if (sessionStorage.getItem('adblockHealthTried') === '1')
+            return;
+        sessionStorage.setItem('adblockHealthTried', '1');
+    } catch (e) {
+        return;
+    }
+    refreshHealth();
+}
+
 function exportSettings() {
     submitAction('adblock_export.sh');
 }
@@ -178,6 +322,9 @@ function done_validating(action) {
     <input type="hidden" name="group_id" value="">
     <input type="hidden" name="action_mode" value="">
     <input type="hidden" name="action_script" value="">
+
+    <textarea id="healthData" style="display:none;"><% nvram_get_x("", "adblock_health"); %></textarea>
+    <textarea id="recentData" style="display:none;"><% nvram_get_x("", "adblock_recent"); %></textarea>
 
     <div class="container-fluid">
         <div class="row-fluid">
@@ -221,6 +368,41 @@ function done_validating(action) {
                                         <div class="muted adblock-status-line" id="blockedStats"><% nvram_get_x("", "adblock_stats_short"); %></div>
                                         <div class="muted adblock-status-line" id="statusText"><% nvram_get_x("", "adblock_status"); %></div>
                                         <div class="muted adblock-status-line" id="phaseText"><% nvram_get_x("", "adblock_progress"); %></div>
+                                    </div>
+
+                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
+                                        <div class="clearfix">
+                                            <h4 class="pull-left" style="margin-top: 0;">Health</h4>
+                                            <div class="pull-right">
+                                                <button type="button" class="btn btn-mini" style="margin-right: 6px;" onclick="refreshHealth();"><i class="icon-refresh"></i> Refresh</button>
+                                                <span id="healthBadge" class="label">Unknown</span>
+                                            </div>
+                                        </div>
+                                        <table class="table table-condensed" style="margin-bottom: 0;">
+                                            <tbody id="healthRows"></tbody>
+                                        </table>
+                                    </div>
+
+                                    <div class="well" style="margin: 0 10px 10px; padding: 12px;">
+                                        <div class="clearfix">
+                                            <h4 class="pull-left" style="margin-top: 0;">Recent blocked queries</h4>
+                                            <div class="pull-right">
+                                                <button type="button" class="btn btn-mini" onclick="refreshHealth();"><i class="icon-refresh"></i> Refresh</button>
+                                            </div>
+                                        </div>
+                                        <p class="muted">Allow adds the domain to the allowlist and removes it from the live blocklist. Wildcard-blocked domains are not listed here; edit the wildcard list on the Adblock page instead.</p>
+                                        <table class="table table-condensed" style="margin-bottom: 0;">
+                                            <thead>
+                                                <tr>
+                                                    <th width="12%">Hits</th>
+                                                    <th>Domain</th>
+                                                    <th width="22%">Last seen</th>
+                                                    <th width="16%"></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="recentRows"></tbody>
+                                        </table>
+                                        <div id="recentEmpty" class="muted" style="display:none;">No recent blocked queries yet. Browse for a minute, then press Refresh.</div>
                                     </div>
 
                                     <div class="well" style="margin: 0 10px 10px; padding: 12px;">

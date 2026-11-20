@@ -16,6 +16,8 @@ romfs:
 	$(ROMFSINST) /usr/sbin/adblock/watchdog.sh
 	$(ROMFSINST) /usr/sbin/adblock/pause.sh
 	$(ROMFSINST) /usr/sbin/adblock/resume.sh
+	$(ROMFSINST) /usr/sbin/adblock/health.sh
+	$(ROMFSINST) /usr/sbin/adblock/allow.sh
 	$(ROMFSINST) /usr/sbin/adblock/restart.sh
 	$(ROMFSINST) /usr/sbin/adblock/stop.sh
 	$(ROMFSINST) /usr/sbin/adblock/rollback.sh

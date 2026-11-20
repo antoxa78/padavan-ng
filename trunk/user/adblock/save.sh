@@ -47,7 +47,7 @@ mv "$TMP" "$DIR/sources.conf"
 
 CUSTOM=$(nvram get adblock_custom)
 # Drop HTML metacharacters and blank lines so repeated saves are byte-stable.
-CUSTOM=$(printf '%s\n' "$CUSTOM" | tr -d '<>' | sed '/^[[:space:]]*$/d')
+CUSTOM=$(printf '%s\n' "$CUSTOM" | tr -d '<>\r' | sed '/^[[:space:]]*$/d')
 nvram set adblock_custom="$CUSTOM"
 printf '%s\n' "$CUSTOM" > "$DIR/custom.hosts.new"
 mv "$DIR/custom.hosts.new" "$DIR/custom.hosts"
@@ -56,7 +56,7 @@ ALLOW=$(nvram get adblock_allow)
 if [ -z "$ALLOW" ]; then
     ALLOW='# no allowlist'
 fi
-ALLOW=$(printf '%s\n' "$ALLOW" | tr -d '<>' | sed '/^[[:space:]]*$/d')
+ALLOW=$(printf '%s\n' "$ALLOW" | tr -d '<>\r' | sed '/^[[:space:]]*$/d')
 nvram set adblock_allow="$ALLOW"
 printf '%s\n' "$ALLOW" > "$DIR/custom.allow.new"
 mv "$DIR/custom.allow.new" "$DIR/custom.allow"
@@ -64,7 +64,7 @@ mv "$DIR/custom.allow.new" "$DIR/custom.allow"
 # Wildcard domains are stored one per line in NVRAM and expanded into dnsmasq
 # address= rules.  Strip pasted URLs and wildcard prefixes so saves stay stable.
 WILD=$(nvram get adblock_wildcard)
-WILD=$(printf '%s\n' "$WILD" | tr -d '<>' | tr 'A-Z' 'a-z' |
+WILD=$(printf '%s\n' "$WILD" | tr -d '<>\r' | tr 'A-Z' 'a-z' |
     sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|^https\?://||; s|/.*$||; s/^\*\.//; s/^\.//' |
     grep -E '^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$' |
     awk 'NF && !seen[$0]++')

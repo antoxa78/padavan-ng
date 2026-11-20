@@ -8,6 +8,7 @@ WORK=/tmp/adblock
 LOG=/tmp/adblock-queries.log
 PERSIST=$DIR/stats/daily.tsv
 RAM=$WORK/daily.tsv
+RECENT=$WORK/recent.tsv
 LOCK=$WORK/stats.lock
 SYNC=0
 [ "$1" = "--sync" ] && SYNC=1
@@ -33,13 +34,20 @@ MONTH=$(date '+%Y-%m')
 TOP=""
 
 if [ -s "$LOG" ]; then
-    BLOCKED=$(grep -cE ' is (0\.0\.0\.0|::1)$' "$LOG" 2>/dev/null)
+    BLOCKED_DOMAINS=$(grep -E ' is (0\.0\.0\.0|::1)$' "$LOG" 2>/dev/null |
+        sed -E 's/.* ([^ ]+) is (0\.0\.0\.0|::1)$/\1/')
+    BLOCKED=$(printf '%s\n' "$BLOCKED_DOMAINS" | grep -c .)
     TOTAL=$(grep -c 'query\[' "$LOG" 2>/dev/null)
     [ -z "$BLOCKED" ] && BLOCKED=0
     [ -z "$TOTAL" ] && TOTAL=0
-    TOP=$(grep -E ' is (0\.0\.0\.0|::1)$' "$LOG" 2>/dev/null |
-        sed -E 's/.* ([^ ]+) is (0\.0\.0\.0|::1)$/\1/' |
-        sort | uniq -c | sort -nr | head -10)
+    if [ "$BLOCKED" -gt 0 ]; then
+        TOP=$(printf '%s\n' "$BLOCKED_DOMAINS" | sort | uniq -c | sort -nr | head -10)
+        NOW=$(date +%s)
+        printf '%s\n' "$BLOCKED_DOMAINS" | sed "s/^/$NOW\t/" >> "$RECENT"
+        tail -n 500 "$RECENT" > "$RECENT.tmp" && mv "$RECENT.tmp" "$RECENT"
+    else
+        TOP=""
+    fi
 
     if [ "$TOTAL" -gt 0 ] || [ "$BLOCKED" -gt 0 ]; then
         awk -v d="$TODAY" -v b="$BLOCKED" -v t="$TOTAL" '
