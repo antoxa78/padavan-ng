@@ -9,7 +9,7 @@ D=$(nvram get adblock_allow_add)
 D=$(printf '%s' "$D" | tr -d '\r' | tr 'A-Z' 'a-z' |
     sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 case "$D" in
-    ''|*[!a-z0-9.-]*) ;;
+    ''|*[!a-z0-9.-]*) D="";;
     *.*) ;;
     *) D="";;
 esac
@@ -39,28 +39,70 @@ if [ -f "$DIR/custom.allow" ]; then
     tr -d '\r' < "$DIR/custom.allow" > "$DIR/custom.allow.new" &&
         mv "$DIR/custom.allow.new" "$DIR/custom.allow"
 fi
-if ! grep -qxF "$D" "$DIR/custom.allow" 2>/dev/null; then
+if ! grep -qxF -- "$D" "$DIR/custom.allow" 2>/dev/null; then
     printf '%s\n' "$D" >> "$DIR/custom.allow"
 fi
 nvram set adblock_allow="$(cat "$DIR/custom.allow")"
 
+PAUSE=$(nvram get adblock_pause_until)
+case "$PAUSE" in ''|*[!0-9]*) PAUSE=0;; esac
+PAUSED=0
+[ "$PAUSE" -gt "$(date +%s)" ] 2>/dev/null && PAUSED=1
+
 D_ESC=$(printf '%s' "$D" | sed 's/\./\\./g')
+FILTER="^((0\\.0\\.0\\.0)|(::1)) ([a-z0-9_.-]+\\.)?${D_ESC}$"
+LIVE_HAD_LINES=0
+[ -s "$WORK/hosts.v4" ] && LIVE_HAD_LINES=1
+LIST_ERROR=0
 for f in "$WORK/hosts.v4" "$WORK/hosts.v6"; do
     [ -f "$f" ] || continue
-    grep -vE "^((0\.0\.0\.0)|(::1)) ([a-z0-9_.-]+\.)?${D_ESC}$" "$f" > "$f.tmp"
-    mv "$f.tmp" "$f"
+    grep -vE "$FILTER" "$f" > "$f.tmp"
+    rc=$?
+    if [ "$rc" -le 1 ]; then
+        mv "$f.tmp" "$f"
+    else
+        rm -f "$f.tmp"
+        LIST_ERROR=1
+    fi
 done
 chmod 644 "$WORK/hosts.v4" "$WORK/hosts.v6" 2>/dev/null
 
-gzip -9 -c "$WORK/hosts.v4" > "$DIR/hosts.gz.new" 2>/dev/null &&
-    mv "$DIR/hosts.gz.new" "$DIR/hosts.gz"
-rm -f "$DIR/hosts.gz.new"
+if [ "$LIST_ERROR" = "0" ]; then
+    if [ "$PAUSED" = "1" ]; then
+        # Live lists are intentionally empty while paused, so remove the domain
+        # from the persisted copy as well or it returns when filtering resumes.
+        if [ -s "$DIR/hosts.gz" ]; then
+            if gzip -dc "$DIR/hosts.gz" > "$WORK/hosts.paused" 2>/dev/null; then
+                grep -vE "$FILTER" "$WORK/hosts.paused" > "$WORK/hosts.paused.new"
+                rc=$?
+                if [ "$rc" -le 1 ] &&
+                        gzip -9 -c "$WORK/hosts.paused.new" > "$DIR/hosts.gz.new" 2>/dev/null; then
+                    chmod 644 "$DIR/hosts.gz.new"
+                    mv "$DIR/hosts.gz.new" "$DIR/hosts.gz"
+                else
+                    LIST_ERROR=1
+                fi
+            else
+                LIST_ERROR=1
+            fi
+            rm -f "$WORK/hosts.paused" "$WORK/hosts.paused.new" "$DIR/hosts.gz.new"
+        fi
+    elif [ "$LIVE_HAD_LINES" = "1" ] || [ -s "$WORK/hosts.v4" ]; then
+        gzip -9 -c "$WORK/hosts.v4" > "$DIR/hosts.gz.new" 2>/dev/null &&
+            chmod 644 "$DIR/hosts.gz.new" &&
+            mv "$DIR/hosts.gz.new" "$DIR/hosts.gz"
+        rm -f "$DIR/hosts.gz.new"
+    fi
+fi
 
 CONFIG_HASH=$( { cat "$DIR/sources.conf"; echo '---'; cat "$DIR/custom.hosts"; echo '---'; cat "$DIR/custom.allow"; echo '---'; cat "$DIR/wildcard.conf"; echo '---'; cat "$DIR/options.conf"; echo '---'; cat "$DIR/doh.conf"; } | md5sum | cut -d' ' -f1)
 OPTIONS_HASH=$( { cat "$DIR/wildcard.conf"; echo '---'; cat "$DIR/options.conf"; echo '---'; cat "$DIR/doh.conf"; } | md5sum | cut -d' ' -f1)
+nvram set adblock_config_hash="$CONFIG_HASH"
 LINES=$(grep -c '^0\.0\.0\.0 ' "$WORK/hosts.v4")
 
-if [ "$OLD_CONFIG_HASH" = "$OLD_APPLIED_HASH" ] && [ "$OLD_APPLIED_OPTIONS_HASH" = "$OPTIONS_HASH" ]; then
+if [ "$LIST_ERROR" = "0" ] &&
+        [ "$OLD_CONFIG_HASH" = "$OLD_APPLIED_HASH" ] &&
+        [ "$OLD_APPLIED_OPTIONS_HASH" = "$OPTIONS_HASH" ]; then
     nvram set adblock_applied_hash="$CONFIG_HASH"
     nvram set adblock_applied_options_hash="$OPTIONS_HASH"
     nvram set adblock_config_dirty=0
@@ -70,9 +112,10 @@ else
 fi
 nvram set adblock_allow_add=""
 
-PAUSE=$(nvram get adblock_pause_until)
-case "$PAUSE" in ''|*[!0-9]*) PAUSE=0;; esac
-if [ "$PAUSE" -gt "$(date +%s)" ] 2>/dev/null; then
+if [ "$LIST_ERROR" = "1" ]; then
+    nvram set adblock_status="allow failed: list update error"
+    nvram set adblock_phase=error
+elif [ "$PAUSED" = "1" ] && [ "$PAUSE" -gt "$(date +%s)" ] 2>/dev/null; then
     nvram set adblock_status="paused (allowed $D)"
     nvram set adblock_phase=paused
 else

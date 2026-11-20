@@ -91,13 +91,14 @@ Last update|$(nvram get adblock_last_success)"
 nvram set adblock_health="$HEALTH"
 nvram set adblock_health_state="$STATE"
 
-# Recent blocked domains, excluding allowlisted names and wildcard blocks
-# (the Allow button can only remove hosts-list entries).
+# Recent blocked domains, excluding allowlisted names plus wildcard and DoH
+# blocks (the Allow button can only remove hosts-list entries).
 ALLOW_TMP=$WORK/allow.tmp
 WILD_TMP=$WORK/wild.tmp
 grep -v '^[[:space:]]*#' "$DIR/custom.allow" 2>/dev/null |
-    tr -d '\r' | sed '/^[[:space:]]*$/d' > "$ALLOW_TMP"
-sed -n 's|^address=/\([^/]*\)/0\.0\.0\.0$|\1|p' "$DIR/wildcard.conf" 2>/dev/null |
+    tr -d '\r' | tr 'A-Z' 'a-z' | sed '/^[[:space:]]*$/d' > "$ALLOW_TMP"
+sed -n 's|^address=/\([^/]*\)/0\.0\.0\.0$|\1|p' \
+    "$DIR/wildcard.conf" "$DIR/doh.conf" 2>/dev/null |
     tr -d '\r' | sort -u > "$WILD_TMP"
 
 RECENT_OUT=$(awk -F'\t' -v now="$NOW" '
@@ -120,7 +121,7 @@ RECENT_OUT=$(awk -F'\t' -v now="$NOW" '
             printf "%d|%s|%d\n", count[d], d, now - last[d]
     }
 ' "$ALLOW_TMP" "$WILD_TMP" "$RECENT" 2>/dev/null |
-    sort -t'|' -k1,1nr | head -25)
+    sort -nr | head -25)
 nvram set adblock_recent="$RECENT_OUT"
 
 rm -f "$ALLOW_TMP" "$WILD_TMP"

@@ -26,6 +26,8 @@
 
 var currentPhase = '<% nvram_get_x("", "adblock_phase"); %>';
 var adblockEnabled = '<% nvram_get_x("", "adblock_enable"); %>' === '1';
+var pauseUntil = parseInt('<% nvram_get_x("", "adblock_pause_until"); %>', 10);
+if (isNaN(pauseUntil)) pauseUntil = 0;
 var actionPending = false;
 
 function initial() {
@@ -38,6 +40,7 @@ function initial() {
     renderHealth();
     renderRecent();
     maybeRefreshHealth();
+    setInterval(updateStatusBadge, 30000);
 }
 
 function actionComplete() {
@@ -71,6 +74,10 @@ function isActivePhase() {
            currentPhase === 'applying';
 }
 
+function isPaused() {
+    return pauseUntil > Math.floor(Date.now() / 1000);
+}
+
 function updateStatusBadge() {
     var badge = document.getElementById('statusBadge');
     if (!badge)
@@ -82,6 +89,9 @@ function updateStatusBadge() {
     if (!adblockEnabled) {
         cls = 'label-important';
         text = 'Disabled';
+    } else if (isPaused()) {
+        cls = 'label-warning';
+        text = 'Paused';
     } else if (isActivePhase()) {
         cls = 'label-warning';
         text = 'Updating';
@@ -216,15 +226,16 @@ function renderRecent() {
         html += '<tr><td>' + escapeHtml(p[0]) + '</td>' +
                 '<td class="recent-domain">' + escapeHtml(domain) + '</td>' +
                 '<td>' + escapeHtml(ageText(p[2])) + '</td>' +
-                '<td><button type="button" class="btn btn-mini" onclick="allowDomain(\'' +
-                escapeAttr(domain) + '\');"><i class="icon-ok"></i> Allow</button></td></tr>';
+                '<td><button type="button" class="btn btn-mini" data-domain="' +
+                escapeAttr(domain) + '" onclick="allowDomain(this.getAttribute(\'data-domain\'));">' +
+                '<i class="icon-ok"></i> Allow</button></td></tr>';
     }
     rows.innerHTML = html;
     if (empty)
         empty.style.display = html ? 'none' : '';
 }
 
-function postAction(script, fields) {
+function postAction(script, fields, onSuccess) {
     if (typeof login_safe === 'function' && !login_safe())
         return false;
     if (!window.fetch || !window.URLSearchParams) {
@@ -248,7 +259,10 @@ function postAction(script, fields) {
         credentials: 'same-origin'
     }).then(function(r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
-        location.reload();
+        if (typeof onSuccess === 'function')
+            onSuccess();
+        else
+            location.reload();
     }).catch(function() {
         hideLoading();
         alert('The action failed. Please retry.');
@@ -264,7 +278,10 @@ function allowDomain(domain) {
     if (!confirm('Allow ' + domain + '?\n\n' +
                  'It will be added to the allowlist and removed from the live blocklist.'))
         return;
-    postAction('adblock_allow.sh', { adblock_allow_add: domain });
+    postAction('adblock_allow.sh', { adblock_allow_add: domain }, function() {
+        // Refresh the health snapshot so the allowed domain disappears.
+        refreshHealth();
+    });
 }
 
 function maybeRefreshHealth() {
@@ -390,7 +407,7 @@ function done_validating(action) {
                                                 <button type="button" class="btn btn-mini" onclick="refreshHealth();"><i class="icon-refresh"></i> Refresh</button>
                                             </div>
                                         </div>
-                                        <p class="muted">Allow adds the domain to the allowlist and removes it from the live blocklist. Wildcard-blocked domains are not listed here; edit the wildcard list on the Adblock page instead.</p>
+                                        <p class="muted">Allow adds the domain to the allowlist and removes it from the live blocklist. Wildcard- and DoH-blocked domains are not listed here; change those settings on the Adblock page instead.</p>
                                         <table class="table table-condensed" style="margin-bottom: 0;">
                                             <thead>
                                                 <tr>

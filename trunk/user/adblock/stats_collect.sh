@@ -91,3 +91,5 @@ if [ "$SYNC" = "1" ] || [ $((NOW - LAST)) -ge 900 ]; then
     cp "$RAM" "$PERSIST" 2>/dev/null && echo "$NOW" > "$WORK/stats.sync"
     [ "$SYNC" = "1" ] && /sbin/mtd_storage.sh save >/dev/null 2>&1
 fi
+
+exit 0
