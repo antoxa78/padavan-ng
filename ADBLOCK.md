@@ -95,6 +95,7 @@ The Services submenu is shortened automatically when these are disabled.
 Kept on purpose:
 
 - OpenVPN / StrongSwan / AmneziaWG (VPN client)
+- SQM/QoS (`HTB` + `fq_codel`, see `SQM.md`)
 - `inadyn` (DDNS)
 - `miniupnpd` (UPnP)
 - xUPnPd + Lua (DLNA)

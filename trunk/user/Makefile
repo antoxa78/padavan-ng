@@ -105,6 +105,7 @@ dir_y						+= networkmap
 dir_y						+= httpd
 dir_y						+= www
 dir_y						+= adblock
+dir_$(CONFIG_FIRMWARE_INCLUDE_QOS)		+= sqm
 dir_y						+= rc
 dir_y						+= inadyn
 dir_y						+= miniupnpd

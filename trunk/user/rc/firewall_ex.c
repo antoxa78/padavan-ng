@@ -2294,4 +2294,8 @@ start_firewall_ex(void)
 	module_smart_unload("iptable_raw", 0);
 	module_smart_unload("iptable_mangle", 0);
 	module_smart_unload("ip6table_mangle", 0);
+
+	/* restore SQM packet marks after the mangle table was rebuilt */
+	if (check_if_file_exist("/usr/sbin/sqm/wan_hook.sh"))
+		doSystem("/usr/sbin/sqm/wan_hook.sh firewall &");
 }

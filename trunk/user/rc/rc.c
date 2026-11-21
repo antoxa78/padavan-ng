@@ -942,6 +942,10 @@ init_router(void)
 
 	start_rwfs_optware();
 
+	// start SQM after the WAN is configured
+	if (check_if_file_exist("/usr/sbin/sqm/start.sh"))
+		doSystem("/usr/sbin/sqm/start.sh &");
+
 	// system ready
 	system("/etc/storage/started_script.sh &");
 }

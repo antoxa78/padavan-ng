@@ -10,7 +10,8 @@
 
 #### Добавлены/обновлены:
 - компоненты прошивки: `openssl`, `busybox`, `dnsmasq`, `dropbear`, `openssh`, `miniupnpd`, `iptables`, `openvpn`, `zapret`, `ipset`, `tor`, `amneziawg 3.1` и пр.
-- веб-интерфейсы для `https-dns-proxy`, `stubby`, `dnscrypt`, `wireguard`, `amneziawg 3.1`, `zapret` и пр.
+- веб-интерфейсы для `https-dns-proxy`, `stubby`, `dnscrypt`, `wireguard`, `amneziawg 3.1`, `zapret`, `SQM/QoS` и пр.
+- [SQM/QoS](SQM.md) — управление буферблатом (fq_codel) и лимиты скорости по клиентам
 
 #### Установка зависимостей для сборки прошивки под Ubuntu 24.04:
 ```

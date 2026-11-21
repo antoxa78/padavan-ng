@@ -171,6 +171,11 @@ ifneq ($(CONFIG_FIRMWARE_INCLUDE_DNSCRYPT)$(CONFIG_FIRMWARE_INCLUDE_DOH)$(CONFIG
 	sed -i 's|^tabtitle\[6\].*|tabtitle[6] = new Array("", "<#Services_Menu_1#>");|' $(ROMFS_DIR)/www/state.js
 	sed -i 's|^tablink\[6\].*|tablink[6] = new Array("", "Advanced_Services_Content.asp");|' $(ROMFS_DIR)/www/state.js
 endif
+ifneq ($(CONFIG_FIRMWARE_INCLUDE_QOS),y)
+	rm -f $(INSTALLDIR)/www/Advanced_SQM_Content.asp
+	sed -i 's|, "SQM / QoS"||' $(ROMFS_DIR)/www/state.js
+	sed -i 's|, "Advanced_SQM_Content.asp"||' $(ROMFS_DIR)/www/state.js
+endif
 
 clean:
 	@echo "Clean www romfs"

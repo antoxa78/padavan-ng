@@ -412,7 +412,7 @@ tabtitle[5] = new Array("", "<#menu5_4_3#>", "<#menu5_4_1#>", "<#menu5_4_2#>", "
 tabtitle[6] = new Array("", "<#Services_Menu_1#>", "<#Services_Menu_2#>", "<#Services_Menu_3#>", "<#Services_Menu_4#>", "<#Services_Menu_5#>", "<#Services_Menu_6#>", "<#Services_Menu_7#>", "<#Services_Menu_8#>");
 
 tabtitle[7] = new Array("", "<#menu5_6_2#>", "<#menu5_6_1#>", "<#menu5_6_3#>", "<#menu5_6_4#>", "<#menu5_6_6#>");
-tabtitle[8] = new Array("", "<#menu5_10_1#>", "<#menu5_10_2#>", "<#menu5_10_3#>", "Adblock", "Diagnostics");
+tabtitle[8] = new Array("", "<#menu5_10_1#>", "<#menu5_10_2#>", "<#menu5_10_3#>", "Adblock", "Diagnostics", "SQM / QoS");
 tabtitle[9] = new Array("", "<#menu5_11#>", "<#menu5_12#>", "WAN", "", "", "", "", "", "", "");
 tabtitle[10] = new Array("", "<#menu5_7_2#>", "<#menu5_7_3#>", "<#menu5_7_5#>", "<#menu5_7_6#>", "<#menu5_7_8#>");
 
@@ -428,7 +428,7 @@ tablink[5] = new Array("", "Advanced_AiDisk_others.asp", "Advanced_AiDisk_samba.
 tablink[6] = new Array("", "Advanced_Services_Content.asp", "Advanced_Services_DNSCrypt.asp", "Advanced_Services_DoH.asp", "Advanced_Services_DoT.asp", "Advanced_Services_Zapret.asp", "Advanced_Services_Proxy.asp", "Advanced_Services_IPSet.asp", "Advanced_Services_Service8.asp");
 
 tablink[7] = new Array("", "Advanced_System_Content.asp", "Advanced_OperationMode_Content.asp", "Advanced_FirmwareUpgrade_Content.asp", "Advanced_SettingBackup_Content.asp", "Advanced_Console_Content.asp");
-tablink[8] = new Array("", "Advanced_Tweaks_Content.asp", "Advanced_Scripts_Content.asp", "Advanced_InetDetect_Content.asp", "Advanced_Adblock_Content.asp", "Advanced_Adblock_Diagnostics.asp");
+tablink[8] = new Array("", "Advanced_Tweaks_Content.asp", "Advanced_Scripts_Content.asp", "Advanced_InetDetect_Content.asp", "Advanced_Adblock_Content.asp", "Advanced_Adblock_Diagnostics.asp", "Advanced_SQM_Content.asp");
 tablink[9] = new Array("", "Main_WStatus2g_Content.asp", "Main_WStatus_Content.asp", "", "", "", "", "", "", "", "");
 tablink[10] = new Array("", "Main_LogStatus_Content.asp", "Main_DHCPStatus_Content.asp", "Main_IPTStatus_Content.asp", "Main_RouteStatus_Content.asp", "Main_CTStatus_Content.asp");
 
@@ -446,6 +446,12 @@ const srv_checks = [found_app_dnscrypt, found_app_doh, found_app_stubby, found_a
 function show_menu(L1, L2, L3){
 	var i;
 	var num_ephy = support_num_ephy();
+
+	// SQM/QoS needs a routed WAN interface; hide its tab in AP mode.
+	if (sw_mode == '3' && tabtitle[8].length > 6) {
+		tabtitle[8][6] = "";
+		tablink[8][6] = "";
+	}
 	if (num_ephy < 2)
 		num_ephy = 2;
 	if (num_ephy > 8)

@@ -1377,6 +1377,10 @@ wan_up(char *wan_ifname, int unit, int is_static)
 	/* call custom user script */
 	if (check_if_file_exist(script_postw))
 		doSystem("%s %s %s %s", script_postw, "up", wan_ifname, wan_addr);
+
+	/* re-apply SQM when the WAN interface changes */
+	if (check_if_file_exist("/usr/sbin/sqm/wan_hook.sh"))
+		doSystem("/usr/sbin/sqm/wan_hook.sh up %s &", wan_ifname);
 }
 
 void
@@ -1448,6 +1452,10 @@ wan_down(char *wan_ifname, int unit, int is_static)
 
 	if (check_if_file_exist(script_postw))
 		doSystem("%s %s %s %s", script_postw, "down", wan_ifname, wan_addr);
+
+	/* remove SQM queues while the WAN is down */
+	if (check_if_file_exist("/usr/sbin/sqm/wan_hook.sh"))
+		doSystem("/usr/sbin/sqm/wan_hook.sh down %s &", wan_ifname);
 }
 
 void
