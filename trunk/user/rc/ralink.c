@@ -767,6 +767,12 @@ gen_ralink_config(int is_soc_ap, int is_aband, int disable_autoscan)
 	if (i_val < 0 || i_val > 100) i_val = 100;
 	fprintf(fp, "TxPower=%d\n", i_val);
 
+#if defined (USE_WID_5G) && USE_WID_5G==7615
+	//MT7615 requires percentage control to be enabled for TxPower to apply
+	if (is_aband)
+		fprintf(fp, "PERCENTAGEenable=%d\n", 1);
+#endif
+
 	//DisableOLBC
 	fprintf(fp, "DisableOLBC=%d\n", 0);
 

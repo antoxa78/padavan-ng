@@ -1636,6 +1636,9 @@ INT Set_TxPower_Proc(RTMP_ADAPTER *pAd, RTMP_STRING *arg)
 #ifdef CONFIG_AP_SUPPORT
 		IF_DEV_CONFIG_OPMODE_ON_AP(pAd) {
 			pAd->CommonCfg.ucTxPowerPercentage[BandIdx] = TxPower;
+
+			/* PERCENTAGEenable is set in the 5G profile, apply the new value immediately */
+			TxPowerDropCtrl(pAd, TxPower, BandIdx);
 		}
 #endif /* CONFIG_AP_SUPPORT */
 		status = TRUE;
