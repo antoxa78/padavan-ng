@@ -161,7 +161,7 @@ struct nvram_pair router_defaults[] = {
 	{ "wl_gmode", "2" },			/* A/N Mixed */
 #endif
 	{ "wl_mcs_mode", "0" },
-	{ "wl_channel", "0" },			/* Channel number */
+	{ "wl_channel", "36" },			/* Channel number */
 	{ "wl_bcn", "100" },			/* Beacon interval */
 	{ "wl_dtim", "1" },			/* DTIM period */
 	{ "wl_rts", "2347" },			/* RTS threshold */
@@ -198,7 +198,7 @@ struct nvram_pair router_defaults[] = {
 #else
 	{ "wl_HT_BW", "1" },
 #endif
-	{ "wl_txbf", "0" },
+	{ "wl_txbf", "1" },
 	{ "wl_ssid2",  DEF_WLAN_5G_SSID },
 	{ "wl_mode_x", "0" },
 	{ "wl_wdsapply_x", "0" },
@@ -216,9 +216,9 @@ struct nvram_pair router_defaults[] = {
 	{ "wl_stream_rx", STR(BOARD_NUM_ANT_5G_RX) },
 	{ "wl_preamble", "1" },
 	{ "wl_greenap", "0" },
-	{ "wl_ldpc", "0" },
+	{ "wl_ldpc", "3" },
 	{ "wl_HT_RDG", "0" },
-	{ "wl_HT_AMSDU", "0" },
+	{ "wl_HT_AMSDU", "1" },
 	{ "wl_HT_MpduDensity", "5" },
 	{ "wl_HT_BAWinSize", "64" },
 	{ "wl_HT_AutoBA", "1" },
@@ -241,7 +241,7 @@ struct nvram_pair router_defaults[] = {
 	{ "wl_guest_mcs_mode", "0" },
 
 #if defined (USE_WID_5G) && USE_WID_5G==7615
-	{ "wl_mumimo", "0" },
+	{ "wl_mumimo", "1" },
 #endif
 
 	// ApCli 5Ghz
@@ -268,7 +268,7 @@ struct nvram_pair router_defaults[] = {
 	{ "rt_ap_isolate", "0" },
 	{ "rt_closed", "0" },
 	{ "rt_macmode", "disabled" },
-	{ "rt_mrate", "2" },
+	{ "rt_mrate", "3" },
 	{ "rt_mode", "ap" },
 	{ "rt_HT_BW", "1" },
 	{ "rt_HT_EXTCHA", "1" },
