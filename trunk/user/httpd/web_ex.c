@@ -220,10 +220,12 @@ sys_script(char *name)
 	{
 		if (SystemCmd[0] && get_login_safe()) {
 			char path_env[64];
+			char cmd_escaped[512];
 			snprintf(path_env, sizeof(path_env), "PATH=%s", SYS_EXEC_PATH_OPT);
 			putenv(path_env);
+			shell_escape_single(cmd_escaped, sizeof(cmd_escaped), SystemCmd);
 			/* Never let a console command block httpd forever. */
-			doSystem("timeout 120 %s >/tmp/syscmd.log 2>&1\n", SystemCmd);
+			doSystem("timeout 120 sh -c '%s' >/tmp/syscmd.log 2>&1\n", cmd_escaped);
 			SystemCmd[0] = '\0';
 		} else {
 			system("echo -n > /tmp/syscmd.log\n");

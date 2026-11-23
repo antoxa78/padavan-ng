@@ -9,6 +9,7 @@ NO_UPDATE=0
 [ "$ADBLOCK_NO_UPDATE" = "1" ] && NO_UPDATE=1
 
 mkdir -p "$DIR" "$DIR/stats" "$WORK"
+rm -f "$DIR/start.sh" "$DIR/update.sh" "$DIR/watchdog.sh" "$DIR/restart.sh" "$DIR/rollback.sh"
 [ -f "$DIR/stats/daily.tsv" ] || : > "$DIR/stats/daily.tsv"
 [ -f "$DIR/sources.conf" ] || cp "$BIN/defaults/sources.conf" "$DIR/sources.conf"
 [ -f "$DIR/custom.hosts" ] || cp "$BIN/defaults/custom.hosts" "$DIR/custom.hosts"

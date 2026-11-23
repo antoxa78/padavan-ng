@@ -73,14 +73,32 @@ TMPFREE=$(df -k /tmp 2>/dev/null | awk 'NR == 2 { printf "%.0f MB", $4/1024 }')
 
 PAUSE=$(nvram get adblock_pause_until)
 case "$PAUSE" in ''|*[!0-9]*) PAUSE=0;; esac
-if [ "$PAUSE" -gt "$NOW" ] 2>/dev/null; then
+if [ "$(nvram get adblock_enable)" = "0" ]; then
+    PAUSE_STATE="disabled"
+elif [ "$PAUSE" -gt "$NOW" ] 2>/dev/null; then
     PAUSE_STATE="paused"
 else
-    PAUSE_STATE="off"
+    PAUSE_STATE="active"
 fi
 
+BUSY=0
+BUSY_REASON="Adblock is still starting; the page will refresh automatically."
+for L in start.lock update.lock; do
+    if [ -f "$WORK/$L" ] && kill -0 "$(cat "$WORK/$L")" 2>/dev/null; then
+        BUSY=1
+        [ "$L" = "update.lock" ] && BUSY_REASON="An update is in progress; health will refresh when it finishes."
+    fi
+done
+UPTIME_SEC=$(cut -d. -f1 /proc/uptime 2>/dev/null)
+case "$UPTIME_SEC" in ''|*[!0-9]*) UPTIME_SEC=0;; esac
+
 REASON=""
-if [ "$RESOLVER" != "running" ]; then
+if [ "$(nvram get adblock_enable)" != "0" ] &&
+        { [ "$RESOLVER" != "running" ] || [ "$DNS_STATE" != "ok" ]; } &&
+        { [ "$BUSY" = "1" ] || [ "$UPTIME_SEC" -lt 180 ]; }; then
+    STATE="starting"
+    REASON="$BUSY_REASON"
+elif [ "$RESOLVER" != "running" ]; then
     STATE="error"
     REASON="The DNS resolver is not running. Check the Adblock service and resolver status."
 elif [ "$DNS_STATE" != "ok" ]; then

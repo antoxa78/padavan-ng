@@ -42,16 +42,21 @@ sqm_wan_iface() {
 		return 0
 	fi
 
+	# Prefer the real WAN interface over the default route: with a VPN client
+	# the default route points at tun0/wg0 while SQM still belongs on the WAN.
+	w=$(nvram get wan0_ifname_t)
+	if [ -n "$w" ] && [ -d "/sys/class/net/$w" ]; then
+		echo "$w"
+		return 0
+	fi
+
 	w=$(nvram get sqm_active_iface)
 	if [ -n "$w" ] && [ -d "/sys/class/net/$w" ]; then
 		echo "$w"
 		return 0
 	fi
 
-	# Prefer the real WAN interface over the default route: with a VPN client
-	# the default route points at tun0/wg0 while SQM still belongs on the WAN.
-	w=$(nvram get wan0_ifname_t)
-	[ -z "$w" ] && w=$(nvram get wan_ifname)
+	w=$(nvram get wan_ifname)
 	if [ -n "$w" ] && [ -d "/sys/class/net/$w" ]; then
 		echo "$w"
 		return 0

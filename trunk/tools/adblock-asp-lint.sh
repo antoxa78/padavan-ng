@@ -5,7 +5,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DIR="$ROOT/user/www/n56u_ribbon_fixed"
 FAIL=0
 
-for f in "$DIR/Advanced_Adblock_Content.asp" "$DIR/Advanced_Adblock_Diagnostics.asp"; do
+for f in "$DIR/Advanced_Adblock_Content.asp" "$DIR/Advanced_Adblock_Diagnostics.asp" "$DIR/Advanced_SQM_Content.asp"; do
     [ -f "$f" ] || { echo "missing: $f"; FAIL=1; continue; }
 
     if grep -nE '\bnvram_(get|match)[[:space:]]*\(' "$f"; then

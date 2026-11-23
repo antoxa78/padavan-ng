@@ -25,10 +25,12 @@
 <% login_state_hook(); %>
 
 var currentPhase = '<% nvram_get_x("", "adblock_phase"); %>';
+var healthState = '<% nvram_get_x("", "adblock_health_state"); %>';
 var adblockEnabled = '<% nvram_get_x("", "adblock_enable"); %>' === '1';
 var pauseUntil = parseInt('<% nvram_get_x("", "adblock_pause_until"); %>', 10);
 if (isNaN(pauseUntil)) pauseUntil = 0;
 var actionPending = false;
+var formDirty = false;
 
 function initial() {
     show_banner(1);
@@ -39,8 +41,17 @@ function initial() {
     updatePhaseText();
     renderHealth();
     renderRecent();
+    bindDirtyTracking();
     maybeRefreshHealth();
+    scheduleAutoRefresh();
     setInterval(updateStatusBadge, 30000);
+}
+
+function bindDirtyTracking() {
+    if (!document.form)
+        return;
+    document.form.addEventListener('input', function() { formDirty = true; });
+    document.form.addEventListener('change', function() { formDirty = true; });
 }
 
 function actionComplete() {
@@ -180,11 +191,14 @@ function renderHealth() {
     }
     rows.innerHTML = html || '<tr><td class="muted">No health data yet. Press Refresh.</td></tr>';
 
-    var state = '<% nvram_get_x("", "adblock_health_state"); %>';
+    var state = healthState;
     if (badge) {
         if (state === 'ok') {
             badge.className = 'label label-success';
             badge.innerHTML = 'Healthy';
+        } else if (state === 'starting') {
+            badge.className = 'label label-info';
+            badge.innerHTML = 'Starting';
         } else if (state === 'warn') {
             badge.className = 'label label-warning';
             badge.innerHTML = 'Warning';
@@ -202,13 +216,20 @@ function renderHealth() {
     if (reasonEl) {
         var reason = reasonData ? reasonData.value.replace(/^\s+|\s+$/g, '') : '';
         if (!reason) {
-            if (state === 'warn')
+            if (state === 'starting')
+                reason = 'Adblock is still starting; the page will refresh automatically.';
+            else if (state === 'warn')
                 reason = 'The resolver is running, but the local DNS test failed.';
             else if (state === 'error')
                 reason = 'The DNS resolver is not running.';
         }
         if (reason && state !== 'ok') {
-            reasonEl.className = 'alert ' + (state === 'error' ? 'alert-danger' : 'alert-warning');
+            var alertCls = 'alert-warning';
+            if (state === 'error')
+                alertCls = 'alert-danger';
+            else if (state === 'starting')
+                alertCls = 'alert-info';
+            reasonEl.className = 'alert ' + alertCls;
             reasonEl.innerHTML = escapeHtml(reason);
             reasonEl.style.display = '';
         } else {
@@ -315,6 +336,15 @@ function maybeRefreshHealth() {
         return;
     }
     refreshHealth();
+}
+
+function scheduleAutoRefresh() {
+    if (healthState !== 'starting' && !isActivePhase())
+        return;
+    setTimeout(function() {
+        if (!formDirty && !actionPending)
+            refreshHealth();
+    }, 8000);
 }
 
 function exportSettings() {

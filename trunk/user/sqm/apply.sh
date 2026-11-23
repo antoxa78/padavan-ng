@@ -73,6 +73,7 @@ UP_KBPS=$(sqm_kbps "$UPM" "$OVERHEAD")
 DOWN_KBPS=$(sqm_kbps "$DOWNM" "$OVERHEAD")
 [ "$UP_KBPS" -lt 100 ] && UP_KBPS=0
 [ "$DOWN_KBPS" -lt 100 ] && DOWN_KBPS=0
+[ "$DL_SHAPE" != "1" ] && DOWN_KBPS=0
 
 if [ "$UP_KBPS" = "0" ] && [ "$DOWN_KBPS" = "0" ]; then
 	"$BIN/stop.sh" --quiet
@@ -133,8 +134,12 @@ setup_client() {
 		rate 8kbit ceil "${cap}kbit" prio 1 || return 1
 	tc qdisc add dev "$dev" parent "${root}:${id}" fq_codel \
 		limit 512 target 5ms interval 100ms 2>/dev/null || true
-	tc filter add dev "$dev" parent "${root}:" protocol ip handle "$mark" fw \
-		flowid "${root}:${id}" || return 1
+	if ! tc filter add dev "$dev" parent "${root}:" protocol ip handle "$mark" fw \
+			flowid "${root}:${id}"; then
+		tc qdisc del dev "$dev" parent "${root}:${id}" 2>/dev/null
+		tc class del dev "$dev" classid "${root}:${id}" 2>/dev/null
+		return 1
+	fi
 	return 0
 }
 

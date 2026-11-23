@@ -215,22 +215,34 @@ function collectClients() {
 
 function validateSettings() {
     var enable = document.form.sqm_enable.value;
-    var up = parseFloat(document.form.sqm_upload_mbps.value || '0');
-    var down = parseFloat(document.form.sqm_download_mbps.value || '0');
-    var overhead = parseInt(document.form.sqm_overhead.value || '95', 10);
+    var upRaw = document.form.sqm_upload_mbps.value.replace(/^\s+|\s+$/g, '') || '0';
+    var downRaw = document.form.sqm_download_mbps.value.replace(/^\s+|\s+$/g, '') || '0';
+    var overheadRaw = document.form.sqm_overhead.value.replace(/^\s+|\s+$/g, '') || '95';
+    var dlShape = document.form.sqm_download_shape.value;
+
+    if (!/^[0-9]+(\.[0-9]+)?$/.test(upRaw) || !/^[0-9]+(\.[0-9]+)?$/.test(downRaw)) {
+        alert('WAN speeds must be numbers in Mbit/s.');
+        return false;
+    }
+    var up = parseFloat(upRaw);
+    var down = parseFloat(downRaw);
+    var overhead = parseInt(overheadRaw, 10);
 
     if (!isFinite(up) || !isFinite(down) || up < 0 || down < 0 || up > 10000 || down > 10000) {
         alert('WAN speeds must be between 0 and 10000 Mbit/s.');
         return false;
     }
-    if (enable === '1' && up <= 0 && down <= 0) {
-        alert('Set the measured WAN upload or download speed before enabling SQM.');
+    if (enable === '1' && up <= 0 && (dlShape !== '1' || down <= 0)) {
+        alert('Set the measured WAN upload speed, or enable download shaping with a download speed.');
         return false;
     }
-    if (!isFinite(overhead) || overhead < 50 || overhead > 100) {
+    if (!/^[0-9]+$/.test(overheadRaw) || !isFinite(overhead) || overhead < 50 || overhead > 100) {
         alert('The shaping percentage must be between 50 and 100.');
         return false;
     }
+    document.form.sqm_upload_mbps.value = normMbps(upRaw);
+    document.form.sqm_download_mbps.value = normMbps(downRaw);
+    document.form.sqm_overhead.value = String(overhead);
     return true;
 }
 
