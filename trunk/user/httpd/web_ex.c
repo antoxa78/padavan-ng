@@ -2073,12 +2073,38 @@ wol_action_hook(int eid, webs_t wp, int argc, char **argv)
 	{
 		wol_mac[0] = '\0';
 	}
-	
+
+	/* Validate the MAC before passing it to the shell. */
+	if (wol_mac[0]) {
+		for (i = 0; i < 17; i++) {
+			if (i == 2 || i == 5 || i == 8 || i == 11 || i == 14) {
+				if (wol_mac[i] != ':') {
+					wol_mac[0] = '\0';
+					break;
+				}
+			} else if (!isxdigit((unsigned char)wol_mac[i])) {
+				wol_mac[0] = '\0';
+				break;
+			}
+		}
+	}
+
 	sys_result = -1;
-	
-	if (wol_mac[0])
-		sys_result = doSystem("/usr/sbin/ether-wake -b -i %s %s", IFNAME_BR, wol_mac);
-	
+
+	if (wol_mac[0]) {
+		int res_bcast, res_ucast;
+
+		/* Some NICs only wake on a broadcast magic packet, others only
+		 * on a packet addressed to their own MAC. Send both variants. */
+		res_bcast = doSystem("/usr/sbin/ether-wake -b -i %s %s", IFNAME_BR, wol_mac);
+		res_ucast = doSystem("/usr/sbin/ether-wake -i %s %s", IFNAME_BR, wol_mac);
+
+		if (res_bcast == 0 || res_ucast == 0)
+			sys_result = 0;
+		else
+			httpd_log("WOL: failed to send magic packet to %s", wol_mac);
+	}
+
 	if (sys_result == 0) 
 	{
 		nvram_set_temp("wol_mac_last", wol_mac);

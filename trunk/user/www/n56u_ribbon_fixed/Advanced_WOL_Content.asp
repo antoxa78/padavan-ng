@@ -12,8 +12,6 @@
 <link rel="stylesheet" type="text/css" href="/bootstrap/css/main.css">
 
 <script type="text/javascript" src="/jquery.js"></script>
-<script type="text/javascript" src="/bootstrap/js/jquery.xdomainajax.js"></script>
-<script type="text/javascript" src="/bootstrap/js/jquery.maskedinput-1.3.min.js"></script>
 <script type="text/javascript" src="/state.js"></script>
 <script type="text/javascript" src="/general.js"></script>
 <script type="text/javascript" src="/popup.js"></script>
@@ -26,15 +24,12 @@ var m_dhcp = [<% get_nvram_list("LANHostConfig", "ManualDHCPList"); %>];
 
 var staticClients = get_resolved_clients();
 
-var devices = {};
-var allMacs = {};
-
 function initial(){
-	var id_menu = 6;
+	var id_menu = 5;
 	if(get_ap_mode()){
-		id_menu = 5;
+		id_menu = 4;
 		if (lan_proto == '1')
-			id_menu--;
+			id_menu = 3;
 	}
 
 	show_banner(1);
@@ -42,186 +37,158 @@ function initial(){
 	show_footer();
 }
 
-// find oui in localStorage (name = hw_addr)
-function findVendorInLocalStorage(mac)
+// Normalize "aabbccddeeff", "AA-BB-CC-DD-EE-FF" or "AA:BB:CC:DD:EE:FF"
+// to "AA:BB:CC:DD:EE:FF". Returns an empty string for an invalid MAC.
+function normalizeMac(mac)
 {
-    return (allMacs !== null && allMacs[mac] != 'undefined') ? allMacs[mac] : null;
+	var raw = String(mac == null ? '' : mac).toUpperCase().replace(/[^0-9A-F]/g, '');
+	if(raw.length != 12)
+		return '';
+
+	var parts = [];
+	for(var i = 0; i < 12; i += 2)
+		parts.push(raw.substr(i, 2));
+
+	return parts.join(':');
 }
 
 function get_resolved_clients()
 {
-    var clients = new Array();
-    for(var i = 0; i < ipmonitor.length; ++i) {
-        clients[i] = new Array(3);
-        clients[i][0] = ipmonitor[i][0];
-        clients[i][1] = ipmonitor[i][1];
-        clients[i][2] = ipmonitor[i][2];
+	var clients = new Array();
+	for(var i = 0; i < ipmonitor.length; ++i) {
+		clients[i] = new Array(3);
+		clients[i][0] = ipmonitor[i][0];
+		clients[i][1] = ipmonitor[i][1];
+		clients[i][2] = ipmonitor[i][2];
 
-        if(clients[i][2] == null || clients[i][2].length == 0)
-            clients[i][2] = "*";
-    }
-    return clients;
+		if(clients[i][2] == null || clients[i][2].length == 0)
+			clients[i][2] = "*";
+	}
+	return clients;
 }
 
-// get mac vendors by api from site http://www.macvendorlookup.com/
-function getVendors()
+function showWakeResult($button, ok, text)
 {
-    var $macs = $j('#wol_table .mac');
-    $macs.each(function(index, value)
-    {
-        var hw_addr = $j(value).text();
-            // need only first six symbols without ':'
-            hw_addr = hw_addr.replace(new RegExp(":",'g'),'').substring(0,6);
+	var $resp = $button.closest('td').find('div.wol_response');
 
-        // try to find vendor from localStorage
-        var company = findVendorInLocalStorage(hw_addr);
+	$button.hide();
+	$resp.removeClass('alert-success alert-error')
+	     .addClass(ok ? 'alert-success' : 'alert-error')
+	     .html(text || (ok ? 'Success' : 'Error'))
+	     .show();
 
-        if(company == null)
-        {
-            // this ajax request with hack from xdomainajax.js
-            $j.ajax({
-                url: 'http://www.macvendorlookup.com/api/v2/'+hw_addr+'/json',
-                type: 'GET',
-                success: function(response){
-                    try{
-                        var vendorObj = JSON.parse($j(response.responseText).text())[0];
-                        $j(value).parents('tr').find('td.vendor').html(vendorObj.company);
-
-                        // add new vendor for saving to localStorage
-                        allMacs[hw_addr] = vendorObj.company;
-
-                        // save vendor to localStorage
-                        setToLocalStorage('hw_addr', JSON.stringify(allMacs));
-                    }
-                    catch(err){
-                        // not found hw vendor ((
-                    }
-
-                }
-            });
-        }
-        else
-        {
-            $j(value).parents('tr').find('td.vendor').html(company);
-        }
-    });
+	setTimeout(function(){
+		$resp.hide();
+		$button.show();
+	}, 2000);
 }
 
 function sendWakeUp(mac, $button)
 {
-    var $respClass = $button.parents('td').find('div.wol_response');
-    if(mac != '')
-    {
-        $j.getJSON('/wol_action.asp', {dstmac: mac},
-            function(response){
-                var respMac = (response != null && typeof response === 'object' && "wol_mac" in response)
-                              ? response.wol_mac.toUpperCase()
-                              : null;
+	mac = normalizeMac(mac);
+	if(!mac) {
+		showWakeResult($button, false, 'Invalid MAC');
+		return;
+	}
 
-                $button.hide();
+	$j.getJSON('/wol_action.asp', {dstmac: mac})
+		.done(function(response){
+			var respMac = (response != null && typeof response === 'object' && "wol_mac" in response)
+			              ? normalizeMac(response.wol_mac)
+			              : '';
 
-                if(respMac == mac)
-                {
-                    $respClass.removeClass('alert-error')
-                              .addClass('alert-success')
-                              .html('Success')
-                              .show();
-
-                    $j('#wol_mac').val(mac);
-                }
-                else
-                {
-                    $respClass.removeClass('alert-success')
-                              .addClass('alert-error')
-                              .html('Error')
-                              .show();
-                }
-
-                var idTimeOut = setTimeout(function(){
-                    clearTimeout(idTimeOut);
-                    $respClass.hide();
-                    $button.show();
-                }, 1500);
-            }
-        );
-    }
+			if(respMac == mac) {
+				$j('#wol_mac').val(mac);
+				showWakeResult($button, true, 'Success');
+			} else {
+				showWakeResult($button, false, 'Error');
+			}
+		})
+		.fail(function(){
+			showWakeResult($button, false, 'Request failed');
+		});
 }
 
 function getDevices()
 {
-    var mergedDevices = {};
-    for(var i = 0; i < staticClients.length; i++)
-    {
-        var mac  = staticClients[i][1];
-        var name = staticClients[i][2];
-        mergedDevices[mac] = name ? name : '';
-    }
+	var mergedDevices = {};
+	var i, mac, name;
 
-    for(i = 0; i < m_dhcp.length; i++)
-    {
-        var mac  = mac_add_delimiters(m_dhcp[i][0]);
-        var name = m_dhcp[i][2];
-        mergedDevices[mac] = name ? name : '';
-    }
+	for(i = 0; i < staticClients.length; i++)
+	{
+		mac = normalizeMac(staticClients[i][1]);
+		if(!mac)
+			continue;
 
-    return mergedDevices;
+		name = staticClients[i][2];
+		mergedDevices[mac] = name ? name : '';
+	}
+
+	for(i = 0; i < m_dhcp.length; i++)
+	{
+		mac = normalizeMac(mac_add_delimiters(m_dhcp[i][0]));
+		if(!mac)
+			continue;
+
+		name = m_dhcp[i][2];
+		mergedDevices[mac] = name ? name : '';
+	}
+
+	return mergedDevices;
 }
 
 $j(document).ready(function() {
-    // wol masked input mac
-    $j.mask.definitions['@']='[A-Fa-f0-9]';
-    $j('#wol_mac').mask("@@:@@:@@:@@:@@:@@");
+	// Format MAC entry as the user types (no external mask plugin needed).
+	$j('#wol_mac').on('input change', function(){
+		var raw = this.value.toUpperCase().replace(/[^0-9A-F]/g, '').substr(0, 12);
+		var out = '';
 
-    try{
-        // try load all mac addresses from localStorage
-        allMacs = getFromLocalStorage('hw_addr');
-        allMacs = JSON.parse(allMacs);
-        if($j(allMacs).size() == 0)
-        {
-            throw new Error('empty object');
-        }
-    }
-    catch(err){
-        allMacs = {};
-    }
+		for(var i = 0; i < raw.length; i++) {
+			if(i && (i % 2) == 0)
+				out += ':';
+			out += raw.charAt(i);
+		}
 
-    devices = getDevices();
+		if(this.value != out)
+			this.value = out;
+	});
 
-    // create table of devices
-    var countDevices = Object.keys(devices).length;
-    if(countDevices > 0 || countDevices === 'undefined')
-    {
-        var t_body = '';
+	$j('#wol_mac').keydown(function(e){
+		if(e.which == 13) {
+			e.preventDefault();
+			$j('#wol_btn').click();
+		}
+	});
 
-        $j.each(devices, function(mac, name){
-            var vendor = '';
-            var btn = '<button class="btn btn-info btn_wakeup">Wake up</button><div class="wol_response" class="alert"></div>';
+	var devices = getDevices();
+	var countDevices = Object.keys(devices).length;
+	if(countDevices > 0)
+	{
+		var t_body = '';
 
-            t_body += '<tr>\n';
-            t_body += '  <td class="mac">'+mac+'</td>\n';
-            t_body += '  <td>'+name+'</td>\n';
-            t_body += '  <td class="vendor">'+vendor+'</td>\n';
-            t_body += '  <td>'+btn+'</td>\n';
-            t_body += '</tr>\n';
-        });
-        $j('#wol_table').append(t_body);
+		$j.each(devices, function(mac, name){
+			var btn = '<button type="button" class="btn btn-info btn_wakeup">Wake up</button><div class="wol_response alert"></div>';
 
-        setTimeout("getVendors()", 200);
-    }
+			t_body += '<tr>\n';
+			t_body += '  <td class="mac">'+mac+'</td>\n';
+			t_body += '  <td>'+name+'</td>\n';
+			t_body += '  <td>'+btn+'</td>\n';
+			t_body += '</tr>\n';
+		});
+		$j('#wol_table').append(t_body);
+	}
 
-    // event click "Wake up"
-    $j('#wol_btn, .btn_wakeup').click(function(){
-        var $button = $j(this);
-        var mac;
+	// event click "Wake up"
+	$j('#wol_btn, .btn_wakeup').click(function(){
+		var $button = $j(this);
+		var mac = $button.hasClass('btn_wakeup')
+		          ? $button.closest('tr').find('.mac').text()
+		          : $j('#wol_mac').val();
 
-        mac = ($button.prop('id') == 'wol_btn')
-              ? $button.parents('tr').find('.mac').val()
-              : mac = $button.parents('tr').find('.mac').text();
+		sendWakeUp(mac, $button);
 
-        sendWakeUp(mac.toUpperCase(), $button);
-
-        return false;
-    });
+		return false;
+	});
 });
 </script>
 <style>
@@ -239,10 +206,11 @@ $j(document).ready(function() {
         display: none;
         float: left;
         padding: 5px 11px;
-        width: 52px;
+        min-width: 52px;
         height: 18px;
         text-align: center;
         border-radius: 5px;
+        white-space: nowrap;
     }
 </style>
 </head>
@@ -302,21 +270,20 @@ $j(document).ready(function() {
                                         <tr>
                                             <th width="25%" style="border-top: 0 none; "><#MAC_Address#></th>
                                             <td width="395px" style="border-top: 0 none; ">
-                                                <input style="float: left; margin-right: 5px; font-family: monospace" id="wol_mac" type="text" maxlength="17" class="span12 mac" size="15" name="wol_mac" value="<% nvram_get_x("","wol_mac_last"); %>"/>
+                                                <input style="float: left; margin-right: 5px; font-family: monospace" id="wol_mac" type="text" maxlength="17" class="span12 mac" size="15" name="wol_mac" autocomplete="off" placeholder="AA:BB:CC:DD:EE:FF" value="<% nvram_get_x("","wol_mac_last"); %>"/>
                                             </td>
                                             <td style="border-top: 0 none; ">
                                                 <input type="button" id="wol_btn" class="btn btn-primary" value="Wake-up" />
-                                                <div class="wol_response" class="alert"></div>
+                                                <div class="wol_response alert"></div>
                                             </td>
                                         </tr>
                                     </table>
 
                                     <table width="100%" cellpadding="4" cellspacing="0" class="table" id="wol_table">
                                         <tr>
-                                            <th width="25%"><#MAC_Address#></th>
-                                            <th width="25%"><#Computer_Name#></th>
-                                            <th width="35%">Vendor</th>
-                                            <th width="15%">&nbsp;</th>
+                                            <th width="40%"><#MAC_Address#></th>
+                                            <th width="40%"><#Computer_Name#></th>
+                                            <th width="20%">&nbsp;</th>
                                         </tr>
                                     </table>
                                 </div>
